@@ -158,31 +158,42 @@ def filtro_periodo_global(series_dt):
 
     data_ini = st.session_state.get("data_ini", dmin)
     data_fim = st.session_state.get("data_fim", dmax)
-    if data_ini < dmin: data_ini = dmin
-    if data_ini > dmax: data_ini = dmin
-    if data_fim > dmax: data_fim = dmax
-    if data_fim < dmin: data_fim = dmax
+    if "data_ini" not in st.session_state: st.session_state["data_ini"] = dmin
+    if "data_fim" not in st.session_state: st.session_state["data_fim"] = dmax
+    if "ini_input" not in st.session_state: st.session_state["ini_input"] = st.session_state["data_ini"]
+    if "fim_input" not in st.session_state: st.session_state["fim_input"] = st.session_state["data_fim"]
 
     cols = st.sidebar.columns(2)
     for i, (nome_mes, ini, fim) in enumerate(ciclos):
         col = cols[i % 2]
-        if col.button(nome_mes, key=f"mes_{nome_mes}"):
+        uid = ini.strftime("%Y%m")  # chave única por ano+mês
+        if col.button(nome_mes, key=f"mes_{uid}"):
             st.session_state["data_ini"] = ini
             st.session_state["data_fim"] = fim
-            data_ini, data_fim = ini, fim
+            st.session_state["ini_input"] = ini      # <- ver item 2
+            st.session_state["fim_input"] = fim      # <- ver item 2
+            st.rerun()
 
     if st.sidebar.button("Período todo", key="all"):
         st.session_state["data_ini"] = dmin
         st.session_state["data_fim"] = dmax
-        data_ini, data_fim = dmin, dmax
+        st.session_state["ini_input"] = dmin
+        st.session_state["fim_input"] = dmax
+        st.rerun()
 
     c1, c2 = st.sidebar.columns(2)
-    dini = c1.date_input("Início", value=data_ini, min_value=dmin, max_value=dmax, key="ini_input")
-    dfim = c2.date_input("Fim", value=data_fim, min_value=dmin, max_value=dmax, key="fim_input")
+    dini = c1.date_input("Início", value=st.session_state["ini_input"],
+                         min_value=dmin, max_value=dmax, key="ini_input")
+    dfim = c2.date_input("Fim", value=st.session_state["fim_input"],
+                         min_value=dmin, max_value=dmax, key="fim_input")
+    
 
     if dini < dmin: dini = dmin
     if dfim > dmax: dfim = dmax
     if dini > dfim: dini, dfim = dmin, dmax
+
+    st.session_state["data_ini"] = dini
+    st.session_state["data_fim"] = dfim
 
     st.session_state["data_ini"], st.session_state["data_fim"] = dini, dfim
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
