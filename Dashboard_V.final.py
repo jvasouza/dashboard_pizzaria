@@ -140,6 +140,8 @@ def listar_ciclos_mensais(series_dt):
         ini, fim = ciclo_12_12_bounds(y, m)
         if not (fim < dt_min or ini > dt_max):
             nome_mes = date(y, m, 1).strftime("%B").capitalize()
+            nome_mes = nome_mes.replace("January","Janeiro").replace("February","Fevereiro").replace("March","Março").replace("April","Abril").replace("May","Maio").replace("June","Junho").replace("July","Julho").replace("August","Agosto").replace("September","Setembro").replace("October","Outubro").replace("November","Novembro").replace("December","Dezembro")
+
             ciclos.append((nome_mes, ini, fim))
         if m == 12:
             y += 1
