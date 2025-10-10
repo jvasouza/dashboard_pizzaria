@@ -356,7 +356,7 @@ with tab1:
             st.subheader("Faturamento por Dia da Semana")
             mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
             dff["dow"] = dff["data"].dt.weekday.map(mapper)
-            ordem = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
+            ordem = ["Qua","Qui","Sex","Sáb","Dom"]
             fat_dow = dff.groupby("dow", as_index=False)["valor_liq"].sum()
             fat_dow["dow"] = pd.Categorical(fat_dow["dow"], categories=ordem, ordered=True)
             fat_dow = fat_dow.sort_values("dow")
