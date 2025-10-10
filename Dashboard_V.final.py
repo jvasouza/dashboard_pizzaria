@@ -22,10 +22,10 @@ def estilizar_fig(fig):
     return fig
 
 TONS_TERROSOS = [
-    "#8B4513",  # marrom escuro
-    "#A0522D",  # marrom médio
+    "#5F100E",  # marrom escuro
+    "#8C3B2E",  # marrom médio
     "#CD853F",  # areia
-    "#D2B48C",  # bege
+    "#B85C38",  # bege
     "#DEB887",  # caramelo claro
     "#F5DEB3",  # trigo
 ]
