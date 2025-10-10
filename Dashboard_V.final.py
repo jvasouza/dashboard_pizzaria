@@ -7,6 +7,7 @@ import calendar
 import locale
 import plotly.io as pio
 from PIL import Image
+from pathlib import Path
 
 
 def estilizar_fig(fig):
