@@ -1,3 +1,5 @@
+
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -117,10 +119,6 @@ arq_custo_bebidas = DATA / "custo bebidas.xlsx"
 arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
 
 
-st.write("DATA =", (Path(__file__).parent / "data").resolve())
-st.write("Arquivos em data:", [p.name for p in (Path(__file__).parent / "data").glob("*")])
-st.write("arq_contas =", arq_contas, "existe?", arq_contas.exists())
-st.stop()
 
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
@@ -385,6 +383,36 @@ with tab2:
 
         st.divider()
 
+        st.divider()
+        st.subheader("Evolução do Nº de Pedidos por Dia")
+
+        dpp["dia"] = dpp["data"].dt.date
+        pedidos_por_dia = (
+            dpp.groupby("dia", as_index=False)["codigo"]
+            .nunique()
+            .rename(columns={"codigo": "pedidos"})
+            .sort_values("dia")
+        )
+
+        mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
+        pedidos_por_dia["dow"] = pd.to_datetime(pedidos_por_dia["dia"]).dt.weekday.map(mapper)
+
+        fig_ped_dia = px.line(
+            pedidos_por_dia,
+            x="dia", y="pedidos",
+            markers=True,
+            labels={"dia":"Data", "pedidos":"Pedidos"},
+            color_discrete_sequence=TONS_TERROSOS
+        )
+        fig_ped_dia = estilizar_fig(fig_ped_dia)
+        fig_ped_dia.update_xaxes(tickformat="%d/%m/%Y")
+        fig_ped_dia.update_traces(
+            hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Pedidos: %{y}",
+            customdata=pedidos_por_dia[["dow"]].to_numpy()
+        )
+        st.plotly_chart(fig_ped_dia, use_container_width=True, key="ped_linha_dia")
+
+
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Nº de Pedidos por Tipo")
@@ -526,3 +554,4 @@ with tab3:
         nao_mapeados_pizza = int(pizza_merged["custo"].isna().sum())
         nao_mapeados_beb = int(beb_merged["custo"].isna().sum())
         st.caption(f"Itens sem custo mapeado – PIZZAS: {nao_mapeados_pizza} | BEBIDAS: {nao_mapeados_beb}")
+
