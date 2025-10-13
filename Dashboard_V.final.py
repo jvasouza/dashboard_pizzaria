@@ -164,6 +164,25 @@ def set_locale_ptbr():
 
 _ = set_locale_ptbr()
 
+def renomeia_benevenuto_para_capricciosa(nome_padronizado):
+    s = sem_acentos_upper(nome_padronizado)
+    m = re.match(r"^(BENEVENUTO)(?:\s+(G|M|P))?$", s)
+    if m:
+        tam = f" {m.group(2)}" if m.group(2) else ""
+        return f"CAPRICCIOSA{tam}"
+    return s
+
+def normaliza_bebida_nome(nome):
+
+    s = sem_acentos_upper(nome)
+    if s.startswith("SUCO "):
+        if " 400ML" in s:
+            return "SUCO 400ML"
+        if " JARRA" in s:
+            return "SUCO JARRA"
+        
+    return s
+
 
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
@@ -231,19 +250,14 @@ def padroniza_pizza_nome_tamanho(nome):
         nome = nome[6:].strip()
     tam = None
     if nome.endswith(" GRANDE"):
-        nome = nome[:-7].strip()
-        tam = "G"
+        nome = nome[:-7].strip(); tam = "G"
     elif nome.endswith(" MEDIA"):
-        nome = nome[:-6].strip()
-        tam = "M"
+        nome = nome[:-6].strip(); tam = "M"
     elif nome.endswith(" PEQUENA"):
-        nome = nome[:-8].strip()
-        tam = "P"
-    elif nome.endswith(" BROTO"):
-        nome = nome[:-6].strip()
-        tam = "P"
+        nome = nome[:-8].strip(); tam = "P"
     if tam:
-        return f"{nome} {tam}"
+        nome = f"{nome} {tam}"
+    nome = renomeia_benevenuto_para_capricciosa(nome)
     return nome
 
 # ==========================================================
@@ -478,6 +492,9 @@ with tab3:
         itens = itens.copy()
         itens.columns = itens.columns.str.strip()
         itens = itens.rename(columns={"Data/Hora Item":"data_item","Qtd.":"qtd","Valor Un. Item":"valor_un","Valor. Tot. Item":"valor_tot","Nome Prod":"nome_prod","Cat. Prod.":"cat_prod"})
+        itens["nome_prod_norm"] = itens["nome_prod"].astype(str).str.strip()
+        itens = itens[~itens["nome_prod_norm"].str.startswith("* Excluído *", na=False)].copy()
+        itens["cat_norm"] = itens["cat_prod"].astype(str).str.upper().str.strip()
         itens["data_item"] = pd.to_datetime(itens["data_item"], errors="coerce")
         itens = itens.dropna(subset=["data_item","nome_prod","cat_prod","qtd","valor_tot"]).copy()
         itens["qtd"] = pd.to_numeric(itens["qtd"], errors="coerce").fillna(0)
@@ -497,25 +514,50 @@ with tab3:
 
 
         maski = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
-
         iv = itens.loc[maski].copy()
 
+        # ----- PIZZAS -----
         iv_pizza = iv[iv["cat_norm"] == "PIZZAS"].copy()
         iv_pizza["produto_key"] = iv_pizza["nome_prod"].apply(padroniza_pizza_nome_tamanho).apply(sem_acentos_upper)
-        pizza_merged = iv_pizza.merge(c_pizzas[["produto_key","custo","preco_venda","produto"]], on="produto_key", how="left")
+
+        pizza_merged = iv_pizza.merge(
+            c_pizzas[["produto_key","custo","preco_venda","produto"]],
+            on="produto_key", how="left"
+        )
         pizza_merged["cmv"] = pizza_merged["custo"].fillna(0) * pizza_merged["qtd"]
         pizza_merged["receita"] = pizza_merged["valor_tot"]
         pizza_merged["margem"] = pizza_merged["receita"] - pizza_merged["cmv"]
+        pizza_merged["cat_final"] = "PIZZAS"
 
+        # ----- BEBIDAS -----
         iv_beb = iv[iv["cat_norm"] == "BEBIDAS"].copy()
-        iv_beb["produto_key"] = iv_beb["nome_prod"].apply(sem_acentos_upper)
-        beb_merged = iv_beb.merge(c_bebidas[["produto_key","custo","preco_venda","produto"]], on="produto_key", how="left")
+        iv_beb["produto_key"] = iv_beb["nome_prod"].apply(normaliza_bebida_nome).apply(sem_acentos_upper)
+
+        beb_merged = iv_beb.merge(
+            c_bebidas[["produto_key","custo","preco_venda","produto"]],
+            on="produto_key", how="left"
+        )
         beb_merged["cmv"] = beb_merged["custo"].fillna(0) * beb_merged["qtd"]
         beb_merged["receita"] = beb_merged["valor_tot"]
         beb_merged["margem"] = beb_merged["receita"] - beb_merged["cmv"]
+        beb_merged["cat_final"] = "BEBIDAS"
 
-        cmv_total = float(pizza_merged["cmv"].sum() + beb_merged["cmv"].sum())
-        receita_total = float(pizza_merged["receita"].sum() + beb_merged["receita"].sum())
+        # ----- OUTROS (tudo que não for PIZZAS nem BEBIDAS) -----
+        iv_outros = iv[~iv["cat_norm"].isin(["PIZZAS","BEBIDAS"])].copy()
+        iv_outros["produto_key"] = iv_outros["nome_prod"].apply(sem_acentos_upper)
+
+        # 3) Regra do Complemento: custo = metade do Valor. Tot. Item
+        is_complemento = (iv_outros["cat_norm"] == "COMPLEMENTO")
+        iv_outros["cmv"] = 0.0
+        iv_outros.loc[is_complemento, "cmv"] = 0.5 * iv_outros.loc[is_complemento, "valor_tot"]
+
+        iv_outros["receita"] = iv_outros["valor_tot"]
+        iv_outros["margem"]  = iv_outros["receita"] - iv_outros["cmv"]
+        iv_outros["cat_final"] = "OUTROS"
+
+        # Totais e % a partir das três categorias
+        cmv_total = float(pizza_merged["cmv"].sum() + beb_merged["cmv"].sum() + iv_outros["cmv"].sum())
+        receita_total = float(pizza_merged["receita"].sum() + beb_merged["receita"].sum() + iv_outros["receita"].sum())
         margem_total = receita_total - cmv_total
         cmv_pct = (cmv_total / receita_total * 100) if receita_total else 0
         margem_pct = (margem_total / receita_total * 100) if receita_total else 0
@@ -525,7 +567,6 @@ with tab3:
         k2.metric("CMV (R$)", br_money(cmv_total))
         k3.metric("CMV (%)", f"{cmv_pct:,.1f}%")
         k4.metric("Margem Bruta (R$)", br_money(margem_total))
-
         st.caption(f"Margem Bruta (%): {margem_pct:,.1f}%")
 
         st.divider()
@@ -534,16 +575,28 @@ with tab3:
         with col1:
             st.subheader("CMV por Categoria")
             cat_df = pd.DataFrame({
-                "categoria": ["PIZZAS","BEBIDAS"],
-                "receita": [pizza_merged["receita"].sum(), beb_merged["receita"].sum()],
-                "cmv": [pizza_merged["cmv"].sum(), beb_merged["cmv"].sum()]
+                "categoria": ["PIZZAS","BEBIDAS","OUTROS"],
+                "receita": [
+                    pizza_merged["receita"].sum(),
+                    beb_merged["receita"].sum(),
+                    iv_outros["receita"].sum()
+                ],
+                "cmv": [
+                    pizza_merged["cmv"].sum(),
+                    beb_merged["cmv"].sum(),
+                    iv_outros["cmv"].sum()
+                ]
             })
             cat_df["margem"] = cat_df["receita"] - cat_df["cmv"]
             cat_df["cmv_%"] = (cat_df["cmv"] / cat_df["receita"] * 100).round(1).fillna(0)
-            fig_cat = px.bar(cat_df, x="categoria", y="cmv", text_auto=".2s", labels={"categoria":"Categoria","cmv":"CMV (R$)"})
+
+            fig_cat = px.bar(cat_df, x="categoria", y="cmv", text_auto=".2s",
+                            labels={"categoria":"Categoria","cmv":"CMV (R$)"})
             fig_cat = estilizar_fig(fig_cat)
             st.plotly_chart(fig_cat, use_container_width=True, key="cmv_bar_cat")
+
             st.dataframe(cat_df.round(2).reset_index(drop=True), use_container_width=True, hide_index=True)
+
         with col2:
             st.subheader("Receita por Categoria")
             fig_rec = px.pie(cat_df, names="categoria", values="receita", hole=0.3)
@@ -553,23 +606,36 @@ with tab3:
 
         st.divider()
 
-        st.subheader("Ranking de Produtos – Melhores Margens")
+        # Rankings agora juntando tudo (pizzas, bebidas e outros)
         pizzas_rank = pizza_merged.groupby("produto_key", as_index=False).agg(
             produto=("produto","first"),
             receita=("receita","sum"),
             cmv=("cmv","sum"),
             margem=("margem","sum"),
             qtd=("qtd","sum")
-        )
+        ).assign(categoria="PIZZAS")
+
         bebidas_rank = beb_merged.groupby("produto_key", as_index=False).agg(
             produto=("produto","first"),
             receita=("receita","sum"),
             cmv=("cmv","sum"),
             margem=("margem","sum"),
             qtd=("qtd","sum")
-        )
-        produtos_rank = pd.concat([pizzas_rank.assign(categoria="PIZZAS"), bebidas_rank.assign(categoria="BEBIDAS")], ignore_index=True)
+        ).assign(categoria="BEBIDAS")
+
+        # Em OUTROS não temos “produto” de tabela de custo — use o nome do item
+        outros_rank = iv_outros.groupby("produto_key", as_index=False).agg(
+            produto=("produto_key","first"),
+            receita=("receita","sum"),
+            cmv=("cmv","sum"),
+            margem=("margem","sum"),
+            qtd=("qtd","sum")
+        ).assign(categoria="OUTROS")
+
+        produtos_rank = pd.concat([pizzas_rank, bebidas_rank, outros_rank], ignore_index=True)
         produtos_rank["margem_%"] = (produtos_rank["margem"] / produtos_rank["receita"] * 100).round(1)
+
+        st.subheader("Ranking de Produtos – Melhores Margens")
         melhores = produtos_rank.sort_values(["margem_%","margem"], ascending=[False, False]).head(10).reset_index(drop=True)
         st.dataframe(melhores[["categoria","produto","qtd","receita","cmv","margem","margem_%"]].round(2), use_container_width=True, hide_index=True)
 
@@ -578,7 +644,6 @@ with tab3:
         st.dataframe(piores[["categoria","produto","qtd","receita","cmv","margem","margem_%"]].round(2), use_container_width=True, hide_index=True)
 
         st.divider()
-
         nao_mapeados_pizza = int(pizza_merged["custo"].isna().sum())
         nao_mapeados_beb = int(beb_merged["custo"].isna().sum())
         st.caption(f"Itens sem custo mapeado – PIZZAS: {nao_mapeados_pizza} | BEBIDAS: {nao_mapeados_beb}")
