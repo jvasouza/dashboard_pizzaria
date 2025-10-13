@@ -1,4 +1,4 @@
-
+import re
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -491,29 +491,51 @@ with tab3:
     else:
         itens = itens.copy()
         itens.columns = itens.columns.str.strip()
-        itens = itens.rename(columns={"Data/Hora Item":"data_item","Qtd.":"qtd","Valor Un. Item":"valor_un","Valor. Tot. Item":"valor_tot","Nome Prod":"nome_prod","Cat. Prod.":"cat_prod"})
+        itens = itens.rename(columns={
+            "Data/Hora Item":"data_item",
+            "Qtd.":"qtd",
+            "Valor Un. Item":"valor_un",
+            "Valor. Tot. Item":"valor_tot",
+            "Nome Prod":"nome_prod",
+            "Cat. Prod.":"cat_prod"
+        })
+        # 2) excluir linhas "* Excluído *"
         itens["nome_prod_norm"] = itens["nome_prod"].astype(str).str.strip()
         itens = itens[~itens["nome_prod_norm"].str.startswith("* Excluído *", na=False)].copy()
+
+        # normalizações básicas
         itens["cat_norm"] = itens["cat_prod"].astype(str).str.upper().str.strip()
         itens["data_item"] = pd.to_datetime(itens["data_item"], errors="coerce")
         itens = itens.dropna(subset=["data_item","nome_prod","cat_prod","qtd","valor_tot"]).copy()
         itens["qtd"] = pd.to_numeric(itens["qtd"], errors="coerce").fillna(0)
         itens["valor_tot"] = pd.to_numeric(itens["valor_tot"], errors="coerce").fillna(0)
-        itens["cat_norm"] = itens["cat_prod"].astype(str).str.upper().str.strip()
 
+        # === TABELAS DE CUSTO ===
         c_pizzas = c_pizzas.copy()
         c_pizzas.columns = c_pizzas.columns.str.strip()
-        c_pizzas = c_pizzas.rename(columns={"produto":"produto","custo":"custo","preço_venda":"preco_venda"})
+        # (mantém seus nomes; só garante 'produto_key')
         c_pizzas["produto_key"] = (
-        c_pizzas["produto"].astype(str)
-        .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
-        .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
+            c_pizzas["produto"].astype(str)
+            .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
+            .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
         )
 
         c_bebidas = c_bebidas.copy()
         c_bebidas.columns = c_bebidas.columns.str.strip()
-        c_bebidas = c_bebidas.rename(columns={"produto":"produto","custo":"custo","preco_venda":"preco_venda"})
-        c_bebidas["produto_key"] = c_bebidas["produto"].apply(sem_acentos_upper)
+        c_bebidas["produto_key"] = c_bebidas["produto"].apply(sem_acentos_upper)  # sua helper
+
+        # === FILTRO POR PERÍODO (antes de montar iv_pizza/iv_beb/iv_outros) ===
+        maski = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
+        iv = itens.loc[maski].copy()
+
+        # ----- PIZZAS -----
+        iv_pizza = iv[iv["cat_norm"]=="PIZZAS"].copy()
+        iv_pizza["produto_key"] = (
+            iv_pizza["nome_prod"].astype(str)
+            .apply(padroniza_pizza_nome_tamanho)  # remove "Pizza ", GRANDE/MÉDIA/PEQUENA→G/M/P e BENEVENUTO→CAPRICCIOSA
+            .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
+            .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
+        )
 
         pizza_merged = iv_pizza.merge(
             c_pizzas[["produto_key","produto","custo"]],
@@ -523,19 +545,7 @@ with tab3:
         pizza_merged["receita"] = pizza_merged["valor_tot"]
         pizza_merged["cmv"]     = pizza_merged["custo"].fillna(0) * pizza_merged["qtd"]
         pizza_merged["margem"]  = pizza_merged["receita"] - pizza_merged["cmv"]
-
-        maski = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
-        iv = itens.loc[maski].copy()
-
-        # ----- PIZZAS -----
-        iv_pizza = iv[iv["cat_norm"]=="PIZZAS"].copy()
-        iv_pizza["produto_key"] = (
-            iv_pizza["nome_prod"]
-            .astype(str)
-            .apply(padroniza_pizza_nome_tamanho)  # remove "Pizza ", GRANDE/MÉDIA/PEQUENA→G/M/P e BENEVENUTO→CAPRICCIOSA
-            .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
-            .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
-)
+        pizza_merged["cat_final"] = "PIZZAS"
 
         # ----- BEBIDAS -----
         iv_beb = iv[iv["cat_norm"] == "BEBIDAS"].copy()
@@ -550,20 +560,17 @@ with tab3:
         beb_merged["margem"] = beb_merged["receita"] - beb_merged["cmv"]
         beb_merged["cat_final"] = "BEBIDAS"
 
-        # ----- OUTROS (tudo que não for PIZZAS nem BEBIDAS) -----
+        # ----- OUTROS -----
         iv_outros = iv[~iv["cat_norm"].isin(["PIZZAS","BEBIDAS"])].copy()
         iv_outros["produto_key"] = iv_outros["nome_prod"].apply(sem_acentos_upper)
-
-        # 3) Regra do Complemento: custo = metade do Valor. Tot. Item
         is_complemento = (iv_outros["cat_norm"] == "COMPLEMENTO")
         iv_outros["cmv"] = 0.0
         iv_outros.loc[is_complemento, "cmv"] = 0.5 * iv_outros.loc[is_complemento, "valor_tot"]
-
         iv_outros["receita"] = iv_outros["valor_tot"]
         iv_outros["margem"]  = iv_outros["receita"] - iv_outros["cmv"]
         iv_outros["cat_final"] = "OUTROS"
 
-        # Totais e % a partir das três categorias
+        # === TOTAIS ===
         cmv_total = float(pizza_merged["cmv"].sum() + beb_merged["cmv"].sum() + iv_outros["cmv"].sum())
         receita_total = float(pizza_merged["receita"].sum() + beb_merged["receita"].sum() + iv_outros["receita"].sum())
         margem_total = receita_total - cmv_total
