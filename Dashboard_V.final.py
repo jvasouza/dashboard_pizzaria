@@ -119,6 +119,10 @@ arq_custo_bebidas = DATA / "custo bebidas.xlsx"
 arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
 
 
+st.write("DATA =", (Path(__file__).parent / "data").resolve())
+st.write("Arquivos em data:", [p.name for p in (Path(__file__).parent / "data").glob("*")])
+st.write("arq_contas =", arq_contas, "existe?", arq_contas.exists())
+st.stop()
 
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
