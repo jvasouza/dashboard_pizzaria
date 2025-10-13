@@ -331,22 +331,32 @@ with tab1:
         st.divider()
 
         st.subheader("Evolução do Faturamento Diário")
-        dff["dia"] = dff["data"].dt.date
-        fat_dia = dff.groupby("dia", as_index=False)["valor_liq"].sum().sort_values("dia")
-        fig_fat = px.line(fat_dia, x="dia", y="valor_liq", markers=True, labels={"dia":"Data","valor_liq":"Receita (R$)"}, color_discrete_sequence=TONS_TERROSOS)
-        fig_fat = estilizar_fig(fig_fat)
-        fig_fat.update_layout(xaxis=dict(tickangle=-45, tickmode="linear", dtick="M3"))
 
-        fig_fat.update_xaxes(tickformat="%d/%m/%Y")
+        dff["dia"] = dff["data"].dt.date
+        fat_dia = (
+            dff.groupby("dia", as_index=False)["valor_liq"]
+            .sum()
+            .sort_values("dia")
+        )
+
+        mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
+        fat_dia["dow"] = pd.to_datetime(fat_dia["dia"]).dt.weekday.map(mapper)
+
+        fig_fat = px.line(
+            fat_dia,
+            x="dia", y="valor_liq",
+            markers=True,
+            labels={"dia":"Data","valor_liq":"Receita (R$)"},
+            color_discrete_sequence=TONS_TERROSOS
+        )
+        fig_fat = estilizar_fig(fig_fat)
+        fig_fat.update_xaxes(type="date", tickformat="%d/%m/%Y", ticklabelmode="period", tickangle=-45)
+        fig_fat.update_traces(
+            hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Receita: R$ %{y:.2f}",
+            customdata=fat_dia[["dow"]].to_numpy()
+        )
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
 
-        fat_dia["dow"] = pd.to_datetime(fat_dia["dia"]).dt.weekday.map(mapper)
-        fig_fat.update_traces(
-        hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Receita: R$ %{y:.2f}",
-        customdata=fat_dia[["dow"]].to_numpy()
-        )
-        fig_fat = aplicar_ticks_adaptativos(fig_fat, fat_dia["dia"].min(), fat_dia["dia"].max())
-    
 
         st.divider()
 
