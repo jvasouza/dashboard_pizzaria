@@ -504,30 +504,38 @@ with tab3:
         c_pizzas = c_pizzas.copy()
         c_pizzas.columns = c_pizzas.columns.str.strip()
         c_pizzas = c_pizzas.rename(columns={"produto":"produto","custo":"custo","preço_venda":"preco_venda"})
-        c_pizzas["produto_key"] = c_pizzas["produto"].apply(sem_acentos_upper)
+        c_pizzas["produto_key"] = (
+        c_pizzas["produto"].astype(str)
+        .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
+        .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
+        )
 
         c_bebidas = c_bebidas.copy()
         c_bebidas.columns = c_bebidas.columns.str.strip()
         c_bebidas = c_bebidas.rename(columns={"produto":"produto","custo":"custo","preco_venda":"preco_venda"})
         c_bebidas["produto_key"] = c_bebidas["produto"].apply(sem_acentos_upper)
 
-
+        pizza_merged = iv_pizza.merge(
+            c_pizzas[["produto_key","produto","custo"]],
+            on="produto_key", how="left"
+        )
+        pizza_merged["produto"] = pizza_merged["produto"].fillna(pizza_merged["produto_key"])
+        pizza_merged["receita"] = pizza_merged["valor_tot"]
+        pizza_merged["cmv"]     = pizza_merged["custo"].fillna(0) * pizza_merged["qtd"]
+        pizza_merged["margem"]  = pizza_merged["receita"] - pizza_merged["cmv"]
 
         maski = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
         iv = itens.loc[maski].copy()
 
         # ----- PIZZAS -----
-        iv_pizza = iv[iv["cat_norm"] == "PIZZAS"].copy()
-        iv_pizza["produto_key"] = iv_pizza["nome_prod"].apply(padroniza_pizza_nome_tamanho).apply(sem_acentos_upper)
-
-        pizza_merged = iv_pizza.merge(
-            c_pizzas[["produto_key","custo","preco_venda","produto"]],
-            on="produto_key", how="left"
-        )
-        pizza_merged["cmv"] = pizza_merged["custo"].fillna(0) * pizza_merged["qtd"]
-        pizza_merged["receita"] = pizza_merged["valor_tot"]
-        pizza_merged["margem"] = pizza_merged["receita"] - pizza_merged["cmv"]
-        pizza_merged["cat_final"] = "PIZZAS"
+        iv_pizza = iv[iv["cat_norm"]=="PIZZAS"].copy()
+        iv_pizza["produto_key"] = (
+            iv_pizza["nome_prod"]
+            .astype(str)
+            .apply(padroniza_pizza_nome_tamanho)  # remove "Pizza ", GRANDE/MÉDIA/PEQUENA→G/M/P e BENEVENUTO→CAPRICCIOSA
+            .str.normalize("NFKD").str.encode("ascii","ignore").str.decode("ascii")
+            .str.replace(r"\s+"," ",regex=True).str.strip().str.upper()
+)
 
         # ----- BEBIDAS -----
         iv_beb = iv[iv["cat_norm"] == "BEBIDAS"].copy()
