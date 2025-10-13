@@ -9,6 +9,7 @@ import calendar
 import locale
 import plotly.io as pio
 from PIL import Image
+import numpy as np
 
 
 def estilizar_fig(fig):
@@ -522,13 +523,12 @@ with tab3:
             sabores = r"(LARANJA|ABACAXI|MARACUJ[ÁA])"
             s2 = s.copy()
             s2.loc[mask_sucos] = s2.loc[mask_sucos].str.replace(rf"(\bSUCO)\s+{sabores}\s+",r"\1 ",flags=re.IGNORECASE,regex=True)
-            s2 = s2.str.replace(r"^(?i)carnes\s+","",regex=True)
-            s2 = s2.str.replace(r"^(?i)batata frita\s+","",regex=True)
-            mask_rodizio = s2.str.contains(r"(?i)rodizio")
+            s2 = s2.str.replace(r"^carnes\s+","",regex=True, flags=re.IGNORECASE)
+            s2 = s2.str.replace(r"^batata frita\s+","",regex=True, flags=re.IGNORECASE)
+            mask_rodizio = s2.str.contains(r"rodizio", flags=re.IGNORECASE, regex=True)
             s2.loc[mask_rodizio] = "RODÍZIO DE PIZZA"
             s2 = s2.str.replace(r"\s{2,}"," ",regex=True).str.strip()
             return s2
-
         mask_periodo = True
         if data_ini is not None and data_fim is not None:
             mask_periodo = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
