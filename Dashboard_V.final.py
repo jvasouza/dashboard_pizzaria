@@ -7,7 +7,6 @@ import calendar
 import locale
 import plotly.io as pio
 from PIL import Image
-from pathlib import Path
 
 
 def estilizar_fig(fig):
@@ -22,10 +21,10 @@ def estilizar_fig(fig):
     return fig
 
 TONS_TERROSOS = [
-    "#5F100E",  # marrom escuro
-    "#8C3B2E",  # marrom médio
+    "#8B4513",  # marrom escuro
+    "#A0522D",  # marrom médio
     "#CD853F",  # areia
-    "#B85C38",  # bege
+    "#D2B48C",  # bege
     "#DEB887",  # caramelo claro
     "#F5DEB3",  # trigo
 ]
@@ -108,6 +107,7 @@ hr { border-top:2px solid #5f100e !important; }
 </style>
 """, unsafe_allow_html=True)
 
+
 DATA = Path(__file__).parent / "data"
 
 arq_itens = DATA / "Historico_Itens_Vendidos.xlsx"
@@ -115,6 +115,12 @@ arq_pedidos = DATA / "Todos os pedidos.xlsx"
 arq_contas = DATA / "Lista-contas-receber.xlsx"
 arq_custo_bebidas = DATA / "custo bebidas.xlsx"
 arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
+
+
+st.write("DATA =", (Path(__file__).parent / "data").resolve())
+st.write("Arquivos em data:", [p.name for p in (Path(__file__).parent / "data").glob("*")])
+st.write("arq_contas =", arq_contas, "existe?", arq_contas.exists())
+st.stop()
 
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
@@ -140,8 +146,6 @@ def listar_ciclos_mensais(series_dt):
         ini, fim = ciclo_12_12_bounds(y, m)
         if not (fim < dt_min or ini > dt_max):
             nome_mes = date(y, m, 1).strftime("%B").capitalize()
-            nome_mes = nome_mes.replace("January","Janeiro").replace("February","Fevereiro").replace("March","Março").replace("April","Abril").replace("May","Maio").replace("June","Junho").replace("July","Julho").replace("August","Agosto").replace("September","Setembro").replace("October","Outubro").replace("November","Novembro").replace("December","Dezembro")
-
             ciclos.append((nome_mes, ini, fim))
         if m == 12:
             y += 1
@@ -158,42 +162,31 @@ def filtro_periodo_global(series_dt):
 
     data_ini = st.session_state.get("data_ini", dmin)
     data_fim = st.session_state.get("data_fim", dmax)
-    if "data_ini" not in st.session_state: st.session_state["data_ini"] = dmin
-    if "data_fim" not in st.session_state: st.session_state["data_fim"] = dmax
-    if "ini_input" not in st.session_state: st.session_state["ini_input"] = st.session_state["data_ini"]
-    if "fim_input" not in st.session_state: st.session_state["fim_input"] = st.session_state["data_fim"]
+    if data_ini < dmin: data_ini = dmin
+    if data_ini > dmax: data_ini = dmin
+    if data_fim > dmax: data_fim = dmax
+    if data_fim < dmin: data_fim = dmax
 
     cols = st.sidebar.columns(2)
     for i, (nome_mes, ini, fim) in enumerate(ciclos):
         col = cols[i % 2]
-        uid = ini.strftime("%Y%m")  # chave única por ano+mês
-        if col.button(nome_mes, key=f"mes_{uid}"):
+        if col.button(nome_mes, key=f"mes_{nome_mes}"):
             st.session_state["data_ini"] = ini
             st.session_state["data_fim"] = fim
-            st.session_state["ini_input"] = ini      # <- ver item 2
-            st.session_state["fim_input"] = fim      # <- ver item 2
-            st.rerun()
+            data_ini, data_fim = ini, fim
 
     if st.sidebar.button("Período todo", key="all"):
         st.session_state["data_ini"] = dmin
         st.session_state["data_fim"] = dmax
-        st.session_state["ini_input"] = dmin
-        st.session_state["fim_input"] = dmax
-        st.rerun()
+        data_ini, data_fim = dmin, dmax
 
     c1, c2 = st.sidebar.columns(2)
-    dini = c1.date_input("Início", value=st.session_state["ini_input"],
-                         min_value=dmin, max_value=dmax, key="ini_input")
-    dfim = c2.date_input("Fim", value=st.session_state["fim_input"],
-                         min_value=dmin, max_value=dmax, key="fim_input")
-    
+    dini = c1.date_input("Início", value=data_ini, min_value=dmin, max_value=dmax, key="ini_input")
+    dfim = c2.date_input("Fim", value=data_fim, min_value=dmin, max_value=dmax, key="fim_input")
 
     if dini < dmin: dini = dmin
     if dfim > dmax: dfim = dmax
     if dini > dfim: dini, dfim = dmin, dmax
-
-    st.session_state["data_ini"] = dini
-    st.session_state["data_fim"] = dfim
 
     st.session_state["data_ini"], st.session_state["data_fim"] = dini, dfim
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
@@ -289,10 +282,8 @@ tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 try:
     locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
 except:
-    try:
-        locale.setlocale(locale.LC_TIME, "Portuguese_Brazil.1252")
-    except:
-        locale.setlocale(locale.LC_TIME, "")
+    locale.setlocale(locale.LC_TIME, "Portuguese_Brazil.1252")
+
 # ==========================================================
 # ABA FATURAMENTO
 # ==========================================================
@@ -356,9 +347,7 @@ with tab1:
             st.subheader("Faturamento por Dia da Semana")
             mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
             dff["dow"] = dff["data"].dt.weekday.map(mapper)
-            dff = dff[dff["dow"] != "Ter"]   # ← ignora terças
-            
-            ordem = ["Seg","Qua","Qui","Sex","Sáb","Dom"]
+            ordem = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
             fat_dow = dff.groupby("dow", as_index=False)["valor_liq"].sum()
             fat_dow["dow"] = pd.Categorical(fat_dow["dow"], categories=ordem, ordered=True)
             fat_dow = fat_dow.sort_values("dow")
