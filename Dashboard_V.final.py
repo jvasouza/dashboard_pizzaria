@@ -1,3 +1,4 @@
+from pathlib import Path
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -384,6 +385,36 @@ with tab2:
         k3.metric("Clientes únicos", f"{clientes_unicos}")
 
         st.divider()
+
+        st.divider()
+        st.subheader("Evolução do Nº de Pedidos por Dia")
+
+        dpp["dia"] = dpp["data"].dt.date
+        pedidos_por_dia = (
+            dpp.groupby("dia", as_index=False)["codigo"]
+            .nunique()
+            .rename(columns={"codigo": "pedidos"})
+            .sort_values("dia")
+        )
+
+        mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
+        pedidos_por_dia["dow"] = pd.to_datetime(pedidos_por_dia["dia"]).dt.weekday.map(mapper)
+
+        fig_ped_dia = px.line(
+            pedidos_por_dia,
+            x="dia", y="pedidos",
+            markers=True,
+            labels={"dia":"Data", "pedidos":"Pedidos"},
+            color_discrete_sequence=TONS_TERROSOS
+        )
+        fig_ped_dia = estilizar_fig(fig_ped_dia)
+        fig_ped_dia.update_xaxes(tickformat="%d/%m/%Y")
+        fig_ped_dia.update_traces(
+            hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Pedidos: %{y}",
+            customdata=pedidos_por_dia[["dow"]].to_numpy()
+        )
+        st.plotly_chart(fig_ped_dia, use_container_width=True, key="ped_linha_dia")
+
 
         c1, c2 = st.columns(2)
         with c1:
