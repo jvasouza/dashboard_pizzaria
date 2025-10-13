@@ -344,6 +344,7 @@ with tab1:
         fat_dia = dff.groupby("dia", as_index=False)["valor_liq"].sum().sort_values("dia")
         fig_fat = px.line(fat_dia, x="dia", y="valor_liq", markers=True, labels={"dia":"Data","valor_liq":"Receita (R$)"}, color_discrete_sequence=TONS_TERROSOS)
         fig_fat = estilizar_fig(fig_fat)
+        fig_fat.update_layout(xaxis=dict(tickangle=-45, tickmode="linear", dtick="M1"))
         fig_fat.update_xaxes(tickformat="%d/%m/%Y")
         fig_fat = aplicar_rotulo_semana(fig_fat, fat_dia, "dia")
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
@@ -371,7 +372,6 @@ with tab1:
            
             fig_dow = px.bar(fat_dow, x="dow", y="valor_liq", labels={"dow":"Dia da Semana","valor_liq":"Receita (R$)"})
             fig_dow = estilizar_fig(fig_dow)
-            fig_dow = aplicar_rotulo_semana(fig_dow, fat_dow, "dia")
             st.plotly_chart(fig_dow, use_container_width=True, key="fat_barras_dow")
             st.dataframe(nomes_legiveis(fat_dow.reset_index(drop=True)), use_container_width=True, hide_index=True)
 
