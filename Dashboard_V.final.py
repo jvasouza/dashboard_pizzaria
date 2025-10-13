@@ -1,3 +1,4 @@
+
 from pathlib import Path
 import streamlit as st
 import pandas as pd
@@ -557,3 +558,4 @@ with tab3:
         nao_mapeados_pizza = int(pizza_merged["custo"].isna().sum())
         nao_mapeados_beb = int(beb_merged["custo"].isna().sum())
         st.caption(f"Itens sem custo mapeado – PIZZAS: {nao_mapeados_pizza} | BEBIDAS: {nao_mapeados_beb}")
+
