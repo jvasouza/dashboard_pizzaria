@@ -108,12 +108,19 @@ hr { border-top:2px solid #5f100e !important; }
 """, unsafe_allow_html=True)
 
 
+DATA = Path(__file__).parent / "data"
 
-arq_contas = r"C:\Users\jvand\Downloads\Lista-contas-receber-01-04-25-a-31-10-25.xlsx"
-arq_pedidos = r"C:\Users\jvand\Downloads\Todos os pedidos  Data de Abertura [06-04-2025 0000 - 06-10-2025 2359].xlsx"
-arq_itens = r"C:\Users\jvand\Downloads\Historico_Itens_Vendidos de 06-04-25 à 06-10-25.xlsx"
-arq_custo_pizzas = r"C:\Users\jvand\Desktop\Adoro Pizza\custo_pizzas.xlsx"
-arq_custo_bebidas = r"C:\Users\jvand\Desktop\Adoro Pizza\custo bebidas.xlsx"
+arq_itens = DATA / "Historico_Itens_Vendidos.xlsx"
+arq_pedidos = DATA / "Todos os pedidos.xlsx"
+arq_contas = DATA / "Lista-contas-receber.xlsx"
+arq_custo_bebidas = DATA / "custo bebidas.xlsx"
+arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
+
+
+st.write("DATA =", (Path(__file__).parent / "data").resolve())
+st.write("Arquivos em data:", [p.name for p in (Path(__file__).parent / "data").glob("*")])
+st.write("arq_contas =", arq_contas, "existe?", arq_contas.exists())
+st.stop()
 
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
