@@ -151,6 +151,18 @@ def listar_ciclos_mensais(series_dt):
         else:
             m += 1
     return ciclos
+def set_locale_ptbr():
+    for loc in ("pt_BR.UTF-8", "pt_BR.utf8", "pt_BR", "Portuguese_Brazil.1252"):
+        try:
+            locale.setlocale(locale.LC_TIME, loc)
+            return loc
+        except locale.Error:
+            continue
+    # último recurso: sem tradução (evita quebrar o app)
+    locale.setlocale(locale.LC_TIME, "C")
+    return "C"
+
+_ = set_locale_ptbr()
 
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
