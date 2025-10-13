@@ -168,7 +168,7 @@ def aplicar_ticks_adaptativos(fig, inicio, fim):
     inicio = pd.to_datetime(inicio)
     fim = pd.to_datetime(fim)
     span = (fim - inicio).days
-    if span > 60:
+    if span > 30:
         fig.update_xaxes(tickmode="linear", dtick="M1", tickformat="%d/%m")
     else:
         fig.update_xaxes(tickmode="linear", dtick="W1", tickformat="%d/%m")
