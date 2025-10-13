@@ -289,10 +289,6 @@ else:
 
 tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 
-try:
-    locale.setlocale(locale.LC_TIME, "pt_BR.UTF-8")
-except:
-    locale.setlocale(locale.LC_TIME, "Portuguese_Brazil.1252")
 
 # ==========================================================
 # ABA FATURAMENTO
