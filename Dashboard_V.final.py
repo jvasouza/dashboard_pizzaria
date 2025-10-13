@@ -164,6 +164,16 @@ def set_locale_ptbr():
 
 _ = set_locale_ptbr()
 
+def aplicar_rotulo_semana(fig, df, coluna_data):
+    vals = pd.to_datetime(df[coluna_data]).dt.normalize()
+    tickvals = pd.Series(vals).sort_values().unique()
+    dias = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
+    ticktext = [f"{dias[pd.Timestamp(v).weekday()]} {pd.Timestamp(v).strftime('%d/%m')}" for v in tickvals]
+    fig.update_xaxes(tickmode="array", tickvals=tickvals, ticktext=ticktext)
+    return fig
+
+    fig_ped_dia = aplicar_rotulo_semana(fig_ped_dia, pedidos_por_dia, "dia")
+
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
     dmin = pd.to_datetime(series_dt.min()).date()
@@ -335,6 +345,7 @@ with tab1:
         fig_fat = px.line(fat_dia, x="dia", y="valor_liq", markers=True, labels={"dia":"Data","valor_liq":"Receita (R$)"}, color_discrete_sequence=TONS_TERROSOS)
         fig_fat = estilizar_fig(fig_fat)
         fig_fat.update_xaxes(tickformat="%d/%m/%Y")
+        fig_fat = aplicar_rotulo_semana(fig_fat, fat_dia, "dia")
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
     
 
@@ -360,6 +371,7 @@ with tab1:
            
             fig_dow = px.bar(fat_dow, x="dow", y="valor_liq", labels={"dow":"Dia da Semana","valor_liq":"Receita (R$)"})
             fig_dow = estilizar_fig(fig_dow)
+            fig_dow = aplicar_rotulo_semana(fig_dow, fat_dow, "dia")
             st.plotly_chart(fig_dow, use_container_width=True, key="fat_barras_dow")
             st.dataframe(nomes_legiveis(fat_dow.reset_index(drop=True)), use_container_width=True, hide_index=True)
 
