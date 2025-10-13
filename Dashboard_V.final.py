@@ -164,18 +164,6 @@ def set_locale_ptbr():
 
 _ = set_locale_ptbr()
 
-def aplicar_ticks_adaptativos(fig, inicio, fim):
-    inicio = pd.to_datetime(inicio)
-    fim = pd.to_datetime(fim)
-    span = (fim - inicio).days
-    if span > 30:
-        fig.update_xaxes(tickmode="linear", dtick="M2", tickformat="%d/%m")
-    else:
-        fig.update_xaxes(tickmode="linear", dtick="W1", tickformat="%d/%m")
-    fig.update_layout(xaxis=dict(tickangle=-45))
-    return fig
-
-mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
 
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
