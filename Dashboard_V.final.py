@@ -345,7 +345,7 @@ with tab1:
         fig_fat = px.line(fat_dia, x="dia", y="valor_liq", markers=True, labels={"dia":"Data","valor_liq":"Receita (R$)"}, color_discrete_sequence=TONS_TERROSOS)
         fig_fat = estilizar_fig(fig_fat)
         fig_fat.update_layout(xaxis=dict(tickangle=-45, tickmode="linear", dtick="M1"))
-        fig_fat.update_xaxes(tickformat="%d/%m/%Y")
+        fig_fat.update_xaxes(tickformat="%d/%m/%Y", tickangle=-45, tickmode="linear", dtick=10)
         fig_fat = aplicar_rotulo_semana(fig_fat, fat_dia, "dia")
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
     
