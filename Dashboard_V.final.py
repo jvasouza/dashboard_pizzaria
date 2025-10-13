@@ -164,15 +164,18 @@ def set_locale_ptbr():
 
 _ = set_locale_ptbr()
 
-def aplicar_rotulo_semana(fig, df, coluna_data):
-    vals = pd.to_datetime(df[coluna_data]).dt.normalize()
-    tickvals = pd.Series(vals).sort_values().unique()
-    dias = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"]
-    ticktext = [f"{dias[pd.Timestamp(v).weekday()]} {pd.Timestamp(v).strftime('%d/%m')}" for v in tickvals]
-    fig.update_xaxes(tickmode="array", tickvals=tickvals, ticktext=ticktext)
+def aplicar_ticks_adaptativos(fig, inicio, fim):
+    inicio = pd.to_datetime(inicio)
+    fim = pd.to_datetime(fim)
+    span = (fim - inicio).days
+    if span > 60:
+        fig.update_xaxes(tickmode="linear", dtick="M1", tickformat="%d/%m")
+    else:
+        fig.update_xaxes(tickmode="linear", dtick="W1", tickformat="%d/%m")
+    fig.update_layout(xaxis=dict(tickangle=-45))
     return fig
 
-    fig_ped_dia = aplicar_rotulo_semana(fig_ped_dia, pedidos_por_dia, "dia")
+mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
 
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
@@ -347,8 +350,14 @@ with tab1:
         fig_fat.update_layout(xaxis=dict(tickangle=-45, tickmode="linear", dtick="M3"))
 
         fig_fat.update_xaxes(tickformat="%d/%m/%Y")
-        fig_fat = aplicar_rotulo_semana(fig_fat, fat_dia, "dia")
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
+
+        fat_dia["dow"] = pd.to_datetime(fat_dia["dia"]).dt.weekday.map(mapper)
+        fig_fat.update_traces(
+        hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Receita: R$ %{y:.2f}",
+        customdata=fat_dia[["dow"]].to_numpy()
+        )
+        fig_fat = aplicar_ticks_adaptativos(fig_fat, fat_dia["dia"].min(), fat_dia["dia"].max())
     
 
         st.divider()
