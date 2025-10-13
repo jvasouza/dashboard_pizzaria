@@ -489,10 +489,9 @@ with tab3:
     if not (carregou(itens) and carregou(c_pizzas) and carregou(c_bebidas)):
         st.info("Carregue as planilhas: Itens Vendidos, Custo Pizzas e Custo Bebidas para visualizar a aba CMV.")
     else:
-        import io
         itens = itens.copy()
         itens.columns = itens.columns.str.strip()
-        itens = itens.rename(columns={"Data/Hora Item":"data_item","Qtd.":"qtd","Valor Un. Item":"valor_un","Valor. Tot. Item":"valor_tot","Nome Prod":"nome_prod","Cat. Prod.":"cat_prod"})
+        itens = itens.rename(columns={"Data/Hora Item":"data_item","Qtd.":"qtd","Valor. Tot. Item":"valor_tot","Nome Prod":"nome_prod","Cat. Prod.":"cat_prod"})
         itens["nome_prod_norm"] = itens["nome_prod"].astype(str).str.strip()
         itens = itens[~itens["nome_prod_norm"].str.startswith("* Excluído *", na=False)].copy()
         itens["data_item"] = pd.to_datetime(itens["data_item"], errors="coerce")
@@ -523,11 +522,18 @@ with tab3:
             sabores = r"(LARANJA|ABACAXI|MARACUJ[ÁA])"
             s2 = s.copy()
             s2.loc[mask_sucos] = s2.loc[mask_sucos].str.replace(rf"(\bSUCO)\s+{sabores}\s+",r"\1 ",flags=re.IGNORECASE,regex=True)
+            s2 = s2.str.replace(r"^(?i)carnes\s+","",regex=True)
+            s2 = s2.str.replace(r"^(?i)batata frita\s+","",regex=True)
+            mask_rodizio = s2.str.contains(r"(?i)rodizio")
+            s2.loc[mask_rodizio] = "RODÍZIO DE PIZZA"
             s2 = s2.str.replace(r"\s{2,}"," ",regex=True).str.strip()
             return s2
 
-        mask_periodo = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
+        mask_periodo = True
+        if data_ini is not None and data_fim is not None:
+            mask_periodo = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
         iv = itens.loc[mask_periodo].copy()
+
         iv["cat_norm"] = iv["cat_prod"].astype(str).str.upper().str.strip()
         iv["nome_limpo"] = clean_nome_prod_hist(iv["nome_prod"], iv["cat_prod"])
         iv["valor_base"] = iv["valor_tot"] * iv["qtd"]
@@ -549,48 +555,19 @@ with tab3:
         iv["cmv_item"] = np.where(mask_complemento, 0.5 * iv["valor_base"], iv["custo_unit"] * iv["qtd"])
 
         cmv_total = float(iv["cmv_item"].sum(skipna=True))
-        receita_total = float(iv["valor_tot"].sum(skipna=True))
-        margem_total = receita_total - cmv_total
-        cmv_pct = (cmv_total / receita_total * 100) if receita_total else 0
-        margem_pct = (margem_total / receita_total * 100) if receita_total else 0
+        st.metric("CMV Total (R$)", br_money(cmv_total))
 
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Receita Considerada (R$)", br_money(receita_total))
-        k2.metric("CMV (R$)", br_money(cmv_total))
-        k3.metric("CMV (%)", f"{cmv_pct:,.1f}%")
-        k4.metric("Margem Bruta (R$)", br_money(margem_total))
-        st.caption(f"Margem Bruta (%): {margem_pct:,.1f}%")
+        tabela = iv.groupby(["nome_limpo"],as_index=False).agg(
+            categoria=("cat_norm","first"),
+            qtd=("qtd","sum"),
+            receita=("valor_tot","sum"),
+            cmv=("cmv_item","sum")
+        )
+        tabela["margem"] = tabela["receita"] - tabela["cmv"]
+        tabela["margem_%"] = (tabela["margem"] / tabela["receita"] * 100).round(1)
+        tabela = tabela.rename(columns={"nome_limpo":"produto"}).sort_values("cmv", ascending=False).reset_index(drop=True)
 
-        iv["grupo"] = np.where(iv["custo_pizza"].notna(),"PIZZAS", np.where(iv["custo_bebida"].notna(),"BEBIDAS", np.where(mask_complemento,"OUTROS","OUTROS")))
-        cat_df = iv.groupby("grupo",as_index=False).agg(receita=("valor_tot","sum"), cmv=("cmv_item","sum"))
-        cat_df["margem"] = cat_df["receita"] - cat_df["cmv"]
-        cat_df["cmv_%"] = (cat_df["cmv"] / cat_df["receita"] * 100).round(1).fillna(0)
-
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("CMV por Categoria")
-            fig_cat = px.bar(cat_df, x="grupo", y="cmv", text_auto=".2s", labels={"grupo":"Categoria","cmv":"CMV (R$)"})
-            fig_cat = estilizar_fig(fig_cat)
-            st.plotly_chart(fig_cat, use_container_width=True)
-            st.dataframe(cat_df.round(2).reset_index(drop=True), use_container_width=True, hide_index=True)
-        with col2:
-            st.subheader("Receita por Categoria")
-            fig_rec = px.pie(cat_df, names="grupo", values="receita", hole=0.3)
-            fig_rec = estilizar_fig(fig_rec)
-            fig_rec.update_traces(textinfo="percent+label")
-            st.plotly_chart(fig_rec, use_container_width=True)
-
-        produtos_rank = iv.groupby(["nome_limpo","grupo"],as_index=False).agg(qtd=("qtd","sum"), receita=("valor_tot","sum"), cmv=("cmv_item","sum"))
-        produtos_rank["margem"] = produtos_rank["receita"] - produtos_rank["cmv"]
-        produtos_rank["margem_%"] = (produtos_rank["margem"] / produtos_rank["receita"] * 100).round(1)
-
-        st.subheader("Ranking de Produtos – Melhores Margens")
-        melhores = produtos_rank.sort_values(["margem_%","margem"], ascending=[False, False]).head(10).reset_index(drop=True)
-        st.dataframe(nomes_legiveis(melhores.rename(columns={"nome_limpo":"produto","grupo":"categoria"})), use_container_width=True, hide_index=True)
-
-        st.subheader("Ranking de Produtos – Piores Margens")
-        piores = produtos_rank.sort_values(["margem_%","margem"], ascending=[True, True]).head(10).reset_index(drop=True)
-        st.dataframe(nomes_legiveis(piores.rename(columns={"nome_limpo":"produto","grupo":"categoria"})), use_container_width=True, hide_index=True)
+        st.dataframe(nomes_legiveis(tabela), use_container_width=True, hide_index=True)
 
         mask_sem_custo = iv["custo_unit"].isna() & ~mask_complemento
         diag_sem_custo = (iv.loc[mask_sem_custo, ["nome_prod","nome_limpo","cat_prod","qtd","valor_tot","valor_base"]]
@@ -599,12 +576,7 @@ with tab3:
                             .agg(qtd_total=("qtd","sum"), valor_total=("valor_base","sum"), ocorrencias=("ocorrencias","sum"))
                             .reset_index()
                             .sort_values(["ocorrencias","valor_total"], ascending=[False, False]))
-        st.divider()
-        st.subheader("Diagnóstico: Itens sem custo mapeado")
-        st.dataframe(diag_sem_custo.reset_index(drop=True), use_container_width=True, hide_index=True)
-
         if not diag_sem_custo.empty:
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-                diag_sem_custo.to_excel(writer, index=False, sheet_name="nao_mapeados")
-            st.download_button("Exportar não mapeados (.xlsx)", data=buffer.getvalue(), file_name="itens_sem_custo_mapeado.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.divider()
+            st.subheader("Itens sem custo mapeado")
+            st.dataframe(diag_sem_custo.reset_index(drop=True), use_container_width=True, hide_index=True)
