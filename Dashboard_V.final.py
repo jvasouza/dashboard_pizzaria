@@ -199,10 +199,11 @@ def filtro_periodo_global(series_dt):
     cols = st.sidebar.columns(2)
     for i, (nome_mes, ini, fim) in enumerate(ciclos):
         col = cols[i % 2]
-        if col.button(nome_mes, key=f"mes_{nome_mes}"):
+        if col.button(f"{nome_mes}", key=f"mes_{nome_mes}_2025"):
             st.session_state["data_ini"] = ini
             st.session_state["data_fim"] = fim
             data_ini, data_fim = ini, fim
+            st.rerun()
 
     if st.sidebar.button("Período todo", key="all"):
         st.session_state["data_ini"] = dmin
@@ -329,6 +330,7 @@ with tab1:
         df["forma_pagamento"] = df["forma_pagamento"].apply(normaliza_pagto)
         mask = (df["data"] >= pd.to_datetime(data_ini)) & (df["data"] <= pd.to_datetime(data_fim))
         dff = df.loc[mask].copy()
+        dff = dff[dff["data"].dt.weekday != 0, 1,]
 
         fat_total = float(dff["valor_liq"].sum())
         n_pedidos = int(dff["cod_pedido"].nunique())
