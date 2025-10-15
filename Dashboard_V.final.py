@@ -135,21 +135,21 @@ def listar_ciclos_mensais(series_dt):
         return []
     dt_min = pd.to_datetime(series_dt.min()).date()
     dt_max = pd.to_datetime(series_dt.max()).date()
+    ano = 2025
+    inicio_ano = date(ano, 1, 1)
+    fim_ano = date(ano, 12, 31)
+    dt_min = max(dt_min, inicio_ano)
+    dt_max = min(dt_max, fim_ano)
+
+    nomes_pt = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     ciclos = []
-    y, m = dt_min.year, dt_min.month
-    y_end, m_end = (dt_max.year + (1 if dt_max.month == 12 else 0),
-                    1 if dt_max.month == 12 else dt_max.month + 1)
-    while (y < y_end) or (y == y_end and m <= m_end):
-        ini, fim = ciclo_12_12_bounds(y, m)
+    for m in range(1, 12 + 1):
+        ini, fim = ciclo_12_12_bounds(ano, m)
         if not (fim < dt_min or ini > dt_max):
-            nome_mes = date(y, m, 1).strftime("%B").capitalize()
+            nome_mes = nomes_pt[m-1]
             ciclos.append((nome_mes, ini, fim))
-        if m == 12:
-            y += 1
-            m = 1
-        else:
-            m += 1
     return ciclos
+
 def set_locale_ptbr():
     for loc in ("pt_BR.UTF-8", "pt_BR.utf8", "pt_BR", "Portuguese_Brazil.1252"):
         try:
@@ -286,8 +286,9 @@ def nomes_legiveis(df):
     }
     df_formatado = df.rename(columns={c: mapa.get(c, c) for c in df.columns}).copy()
     for col in df_formatado.columns:
-        if any(p in col for p in ["(R$)", "Valor", "Receita", "CMV", "Margem"]) and pd.api.types.is_numeric_dtype(df_formatado[col]):
-            df_formatado[col] = df_formatado[col].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        if ("R$" in col or "(R$)" in col or "Valor" in col or "Receita" in col or "CMV" in col or "Margem" in col):
+            if "%" not in col and pd.api.types.is_numeric_dtype(df_formatado[col]):
+                df_formatado[col] = df_formatado[col].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     return df_formatado
 
 # ==========================================================
@@ -411,6 +412,7 @@ with tab2:
         dfp["data"] = pd.to_datetime(dfp["data"], errors="coerce")
         maskp = (dfp["data"] >= pd.to_datetime(data_ini)) & (dfp["data"] <= pd.to_datetime(data_fim))
         dpp = dfp.loc[maskp].copy()
+        dpp = dpp[~dpp["cliente"].astype(str).str.strip().str.lower().eq("não informado")]
 
         pedidos_total = int(dpp["codigo"].nunique())
         receita_periodo = float(dpp["total_recebido"].sum())
@@ -424,7 +426,6 @@ with tab2:
 
         st.divider()
 
-        st.divider()
         st.subheader("Evolução do Nº de Pedidos por Dia")
 
         dpp["dia"] = dpp["data"].dt.date
@@ -473,6 +474,7 @@ with tab2:
 
         st.divider()
         st.subheader("Top 10 Clientes por Nº de Pedidos")
+
         top_cli = (dpp.groupby("cliente", as_index=False)
                     .agg(pedidos=("codigo","nunique"), gasto=("total_recebido","sum"))
                     .sort_values(["pedidos","gasto"], ascending=[False, False])
@@ -522,8 +524,8 @@ with tab3:
             s2 = s.copy()
             s2.loc[mask_sucos] = s2.loc[mask_sucos].str.replace(rf"(\bSUCO)\s+{sabores}\s+",r"\1 ",flags=re.IGNORECASE,regex=True)
             s2 = s2.str.replace(r"^carnes\s+","",regex=True, flags=re.IGNORECASE)
-            s2 = s2.str.replace(r"^batata frita\s+","",regex=True, flags=re.IGNORECASE)
-            mask_rodizio = s2.str.contains(r"rodizio", flags=re.IGNORECASE, regex=True)
+            s2 = s2.str.replace(r"^(?:batata frita\s+){2}", "BATATA FRITA ", flags=re.IGNORECASE, regex=True)
+            mask_rodizio = s2.str.contains(r"rod[ií]zio", flags=re.IGNORECASE, regex=True)
             s2.loc[mask_rodizio] = "RODÍZIO DE PIZZA"
             s2 = s2.str.replace(r"\s{2,}"," ",regex=True).str.strip()
             return s2
