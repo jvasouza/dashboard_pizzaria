@@ -24,12 +24,12 @@ def estilizar_fig(fig):
     return fig
 
 TONS_TERROSOS = [
-    "#8B4513",  # marrom escuro
-    "#A0522D",  # marrom médio
-    "#CD853F",  # areia
-    "#D2B48C",  # bege
-    "#DEB887",  # caramelo claro
-    "#F5DEB3",  # trigo
+    "#5F100E",  
+    "#A9210E", 
+    "#CD853F",  
+    "#D9C77C",  
+    "#DEB887",  
+    "#F5DEB3"
 ]
 
 pio.templates["bene_tema"] = dict(
@@ -105,9 +105,7 @@ section[data-testid="stSidebar"] div[role="button"] { display:none !important; }
 /* divisores */
 hr { border-top:2px solid #5f100e !important; }
 
-/* ===== REMOVE QUALQUER LOGO renderizada anteriormente ===== */
-.sidebar-logo-box, .sidebar-sep { display:none !important; }
-</style>
+
 """, unsafe_allow_html=True)
 
 
