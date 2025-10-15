@@ -425,7 +425,6 @@ with tab2:
         k1, k2, k3 = st.columns(3)
         k1.metric("Pedidos no período", f"{pedidos_total}")
         k2.metric("Ticket Médio (R$)", br_money(ticket_medio))
-        k3.metric("Clientes únicos", f"{clientes_unicos}")
 
         st.divider()
 
@@ -592,5 +591,4 @@ with tab3:
                             .sort_values(["ocorrencias","valor_total"], ascending=[False, False]))
         if not diag_sem_custo.empty:
             st.divider()
-            st.subheader("Itens sem custo mapeado")
-            st.dataframe(diag_sem_custo.reset_index(drop=True), use_container_width=True, hide_index=True)
+            
