@@ -477,13 +477,24 @@ with tab2:
 
         st.divider()
         st.subheader("Top 10 Clientes por Nº de Pedidos")
+
         dpp_top = dpp[~dpp["cliente"].astype(str).str.strip().str.lower().eq("não informado")]
-        top_cli = (dpp.groupby("cliente", as_index=False)
+
+        top_cli = (dpp_top.groupby("cliente", as_index=False)
                     .agg(pedidos=("codigo","nunique"), gasto=("total_recebido","sum"))
                     .sort_values(["pedidos","gasto"], ascending=[False, False])
                     .head(10)
                     .reset_index(drop=True))
+
         st.dataframe(nomes_legiveis(top_cli), use_container_width=True, hide_index=True)
+
+
+
+# ==========================================================
+# ABA CMV
+# ==========================================================    
+
+
 
 with tab3:
     itens = carregar_primeira_aba_xlsx(arq_itens, None)
