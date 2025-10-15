@@ -205,10 +205,10 @@ def filtro_periodo_global(series_dt):
             data_ini, data_fim = ini, fim
             st.rerun()
 
-    if st.sidebar.button("Período todo", key="all"):
+    if st.sidebar.button("Período todo", key="all_2025"):
         st.session_state["data_ini"] = dmin
         st.session_state["data_fim"] = dmax
-        data_ini, data_fim = dmin, dmax
+        st.rerun()
 
     c1, c2 = st.sidebar.columns(2)
     dini = c1.date_input("Início", value=data_ini, min_value=dmin, max_value=dmax, key="ini_input")
