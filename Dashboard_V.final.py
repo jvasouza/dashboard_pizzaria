@@ -330,7 +330,8 @@ with tab1:
         df["forma_pagamento"] = df["forma_pagamento"].apply(normaliza_pagto)
         mask = (df["data"] >= pd.to_datetime(data_ini)) & (df["data"] <= pd.to_datetime(data_fim))
         dff = df.loc[mask].copy()
-        dff = dff[dff["data"].dt.weekday != 0, 1,]
+        dff = dff[~dff["data"].dt.weekday.isin([0, 1])]
+
 
         fat_total = float(dff["valor_liq"].sum())
         n_pedidos = int(dff["cod_pedido"].nunique())
@@ -414,7 +415,7 @@ with tab2:
         dfp["data"] = pd.to_datetime(dfp["data"], errors="coerce")
         maskp = (dfp["data"] >= pd.to_datetime(data_ini)) & (dfp["data"] <= pd.to_datetime(data_fim))
         dpp = dfp.loc[maskp].copy()
-        dpp = dpp[~dpp["cliente"].astype(str).str.strip().str.lower().eq("não informado")]
+       
 
         pedidos_total = int(dpp["codigo"].nunique())
         receita_periodo = float(dpp["total_recebido"].sum())
@@ -476,7 +477,7 @@ with tab2:
 
         st.divider()
         st.subheader("Top 10 Clientes por Nº de Pedidos")
-
+        dpp_top = dpp[~dpp["cliente"].astype(str).str.strip().str.lower().eq("não informado")]
         top_cli = (dpp.groupby("cliente", as_index=False)
                     .agg(pedidos=("codigo","nunique"), gasto=("total_recebido","sum"))
                     .sort_values(["pedidos","gasto"], ascending=[False, False])
