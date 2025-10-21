@@ -618,7 +618,24 @@ with tab3:
         iv["cmv_item"] = np.where(mask_complemento, 0.5 * iv["valor_base"], iv["custo_unit"] * iv["qtd"])
 
         cmv_total = float(iv["cmv_item"].sum(skipna=True))
+        pre_receita_total = 0.0
+        if arq_pre.exists():
+            dfx = pd.read_excel(arq_pre)
+            dfx.columns = dfx.columns.str.strip()
+            if "Data" in dfx.columns and "data" not in dfx.columns:
+                dfx = dfx.rename(columns={"Data":"data"})
+            dfx["data"] = pd.to_datetime(dfx["data"], errors="coerce")
+            cols_pagto = [c for c in dfx.columns if c not in {"data","TOTAL","TOTAL_RECALCULADO"}]
+            dfx_long = dfx.melt(id_vars=["data"], value_vars=cols_pagto, var_name="forma_pagamento", value_name="valor_liq")
+            dfx_long["valor_liq"] = pd.to_numeric(dfx_long["valor_liq"], errors="coerce").fillna(0)
+            mask_pre = (dfx_long["data"] >= pd.to_datetime(data_ini)) & (dfx_long["data"] <= pd.to_datetime(data_fim))
+            pre_receita_total = float(dfx_long.loc[mask_pre, "valor_liq"].sum())
+            cmv_extra_pre = 0.30 * pre_receita_total
+            cmv_total = cmv_total + cmv_extra_pre
+
         st.metric("CMV Total (R$)", br_money(cmv_total))
+        st.metric("CMV Total (R$)", br_money(cmv_total))
+
 
         def meses_ciclo_ancora(ini, fim):
             ini = pd.to_datetime(ini).date()
