@@ -24,11 +24,11 @@ def estilizar_fig(fig):
     return fig
 
 TONS_TERROSOS = [
-    "#5F100E",  
-    "#A9210E", 
-    "#CD853F",  
-    "#D9C77C",  
-    "#DEB887",  
+    "#5F100E",
+    "#A9210E",
+    "#CD853F",
+    "#D9C77C",
+    "#DEB887",
     "#F5DEB3"
 ]
 
@@ -47,28 +47,17 @@ pio.templates.default = "bene_tema"
 st.set_page_config(page_title="Dashboard - Armazém Benevenuto", layout="wide")
 st.title("Dashboard - Armazém Benevenuto")
 
-from PIL import Image
-
-# ===== TEMA + LOGO NA SIDEBAR (um único CSS) =====
 st.markdown("""
 <style>
-/* ===== GERAL ===== */
 .stApp { background-color:#fefaf2; color:#5f100e; }
-
-/* ===== TÍTULOS ===== */
 h1, h2, h3, h4, h5, h6 { color:#5f100e !important; font-weight:700; }
-
-/* ===== SIDEBAR ===== */
 [data-testid="stSidebar"] {
     background-color:#5f100e !important;
     color:#fefaf2 !important;
     padding-top:0 !important;
     margin-top:0 !important;
 }
-/* (opcional) esconder botão de recolher */
 section[data-testid="stSidebar"] div[role="button"] { display:none !important; }
-
-/* textos da sidebar */
 [data-testid="stSidebar"] p,
 [data-testid="stSidebar"] h1,
 [data-testid="stSidebar"] h2,
@@ -78,8 +67,6 @@ section[data-testid="stSidebar"] div[role="button"] { display:none !important; }
 [data-testid="stSidebar"] h6,
 [data-testid="stSidebar"] label,
 [data-testid="stSidebar"] span { color:#fefaf2 !important; }
-
-/* botões da sidebar */
 [data-testid="stSidebar"] .stButton>button {
     background-color:#fefaf2 !important;
     color:#5f100e !important;
@@ -90,24 +77,16 @@ section[data-testid="stSidebar"] div[role="button"] { display:none !important; }
 }
 [data-testid="stSidebar"] .stButton>button:hover { background-color:#f4e9d4 !important; }
 [data-testid="stSidebar"] .stButton>button * { color:#5f100e !important; }
-
-/* inputs */
 [data-testid="stSidebar"] input,
 [data-testid="stSidebar"] .stDateInput input {
     color:#5f100e !important;
     background-color:#fefaf2 !important;
     border-radius:10px !important;
 }
-
-/* métricas */
 [data-testid="stMetricLabel"], [data-testid="stMetricValue"] { color:#5f100e !important; }
-
-/* divisores */
 hr { border-top:2px solid #5f100e !important; }
-
-
+</style>
 """, unsafe_allow_html=True)
-
 
 DATA = Path(__file__).parent / "data"
 
@@ -118,8 +97,7 @@ arq_custo_bebidas = DATA / "custo bebidas.xlsx"
 arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
 arq_custos_fixos = DATA / "custos fixos.xlsx"
 arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
-
-
+arq_compras = DATA / "compras.xlsx"
 
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
@@ -142,19 +120,15 @@ def listar_ciclos_mensais(series_dt):
     fim_ano = date(ano, 12, 31)
     dt_min = max(dt_min, inicio_ano)
     dt_max = min(dt_max, fim_ano)
-
     nomes_pt = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     ciclos = []
-    for m in range(1, 12 + 1):
-        offset = 0 if m == 4 else CYCLE_START_OFFSET   # Abril sem offset
+    for m in range(1, 13):
+        offset = 0 if m == 4 else CYCLE_START_OFFSET
         ini, fim = ciclo_12_12_bounds(ano, m, anchor_day=ANCHOR_DAY, start_offset=offset)
-
-        # Exige interseção com duração > 0 dia:
         if (fim > dt_min) and (ini <= dt_max):
             nome_mes = nomes_pt[m-1]
             ciclos.append((nome_mes, ini, fim))
     return ciclos
-
 
 def set_locale_ptbr():
     for loc in ("pt_BR.UTF-8", "pt_BR.utf8", "pt_BR", "Portuguese_Brazil.1252"):
@@ -163,7 +137,6 @@ def set_locale_ptbr():
             return loc
         except locale.Error:
             continue
-    # último recurso: sem tradução (evita quebrar o app)
     locale.setlocale(locale.LC_TIME, "C")
     return "C"
 
@@ -178,30 +151,25 @@ def renomeia_benevenuto_para_capricciosa(nome_padronizado):
     return s
 
 def normaliza_bebida_nome(nome):
-
     s = sem_acentos_upper(nome)
     if s.startswith("SUCO "):
         if " 400ML" in s:
             return "SUCO 400ML"
         if " JARRA" in s:
             return "SUCO JARRA"
-        
     return s
-
 
 def filtro_periodo_global(series_dt):
     st.sidebar.header("📅 Selecione o Período")
     dmin = pd.to_datetime(series_dt.min()).date()
     dmax = pd.to_datetime(series_dt.max()).date()
     ciclos = listar_ciclos_mensais(series_dt)
-
     data_ini = st.session_state.get("data_ini", dmin)
     data_fim = st.session_state.get("data_fim", dmax)
     if data_ini < dmin: data_ini = dmin
     if data_ini > dmax: data_ini = dmin
     if data_fim > dmax: data_fim = dmax
     if data_fim < dmin: data_fim = dmax
-
     cols = st.sidebar.columns(2)
     for i, (nome_mes, ini, fim) in enumerate(ciclos):
         col = cols[i % 2]
@@ -210,24 +178,19 @@ def filtro_periodo_global(series_dt):
             st.session_state["data_fim"] = fim
             data_ini, data_fim = ini, fim
             st.rerun()
-
     if st.sidebar.button("Período todo", key="all_2025"):
         st.session_state["data_ini"] = dmin
         st.session_state["data_fim"] = dmax
         st.rerun()
-
     c1, c2 = st.sidebar.columns(2)
     dini = c1.date_input("Início", value=data_ini, min_value=dmin, max_value=dmax, key="ini_input")
     dfim = c2.date_input("Fim", value=data_fim, min_value=dmin, max_value=dmax, key="fim_input")
-
     if dini < dmin: dini = dmin
     if dfim > dmax: dfim = dmax
     if dini > dfim: dini, dfim = dmin, dmax
-
     st.session_state["data_ini"], st.session_state["data_fim"] = dini, dfim
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
     return dini, dfim
-
 
 def carregou(df):
     return df is not None and len(df) > 0
@@ -258,9 +221,6 @@ def padroniza_pizza_nome_tamanho(nome):
     nome = renomeia_benevenuto_para_capricciosa(nome)
     return nome
 
-# ==========================================================
-# NOVA FUNÇÃO – renomeia colunas e formata valores
-# ==========================================================
 def nomes_legiveis(df):
     mapa = {
         "data": "Data",
@@ -290,32 +250,23 @@ def nomes_legiveis(df):
                 df_formatado[col] = df_formatado[col].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     return df_formatado
 
-# ==========================================================
-# INÍCIO DASHBOARD
-# ==========================================================
-
-df_periodo_base = (arq_contas, None)
-arq_pre_range = DATA / "recebimentos_ate_25.04.xlsx"
-df_pre_range = (None, arq_pre_range)
-
-series_list = []
-
-if carregou(df_periodo_base) and "Crédito" in df_periodo_base.columns:
-    series_list.append(pd.to_datetime(df_periodo_base["Crédito"], errors="coerce"))
-
-if carregou(df_pre_range):
-    cols = df_pre_range.columns.str.strip()
-    if "data" in cols: 
-        series_list.append(pd.to_datetime(df_pre_range["data"], errors="coerce"))
-    elif "Data" in cols: 
-        series_list.append(pd.to_datetime(df_pre_range["Data"], errors="coerce"))
-    elif "Crédito" in cols: 
-        series_list.append(pd.to_datetime(df_pre_range["Crédito"], errors="coerce"))
-    elif "Credito" in cols:
-        series_list.append(pd.to_datetime(df_pre_range["Credito"], errors="coerce"))
-
-if series_list:
-    base_series = pd.concat(series_list, ignore_index=True).dropna()
+base_dates = []
+if arq_contas.exists():
+    _contas = pd.read_excel(arq_contas)
+    _contas.columns = _contas.columns.str.strip()
+    for cand in ["Crédito", "Credito", "Data"]:
+        if cand in _contas.columns:
+            base_dates.append(pd.to_datetime(_contas[cand], errors="coerce"))
+            break
+if arq_pre.exists():
+    _pre = pd.read_excel(arq_pre)
+    _pre.columns = _pre.columns.str.strip()
+    for cand in ["data", "Data", "Crédito", "Credito"]:
+        if cand in _pre.columns:
+            base_dates.append(pd.to_datetime(_pre[cand], errors="coerce"))
+            break
+if base_dates:
+    base_series = pd.concat(base_dates, ignore_index=True).dropna()
     if not base_series.empty:
         data_ini, data_fim = filtro_periodo_global(base_series)
     else:
@@ -323,102 +274,61 @@ if series_list:
 else:
     data_ini, data_fim = None, None
 
-
 tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 
-
-# ==========================================================
-# ABA FATURAMENTO
-# ==========================================================
 with tab1:
-    df = (arq_contas, None)
-    if not carregou(df):
+    if not arq_contas.exists():
         st.info("Carregue a planilha de Contas a Receber para visualizar a aba Faturamento.")
     else:
-        df = df.copy()
+        df = pd.read_excel(arq_contas)
         df.columns = df.columns.str.strip()
         arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
         df = df.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data","Total Pedido":"total_pedido"})
         df["data"] = pd.to_datetime(df["data"], errors="coerce")
         df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce")
-        df_pre = (None, arq_pre)
-        if carregou(df_pre):
-            dfx = df_pre.copy()
+        if arq_pre.exists():
+            dfx = pd.read_excel(arq_pre)
             dfx.columns = dfx.columns.str.strip()
             dfx = dfx.rename(columns={"Data": "data"})
             dfx["data"] = pd.to_datetime(dfx["data"], errors="coerce")
-
             cols_pagto = [c for c in dfx.columns if c not in {"data", "TOTAL", "TOTAL_RECALCULADO"}]
-
-            dfx_long = dfx.melt(id_vars=["data"], value_vars=cols_pagto,
-                                var_name="forma_pagamento", value_name="valor_liq")
+            dfx_long = dfx.melt(id_vars=["data"], value_vars=cols_pagto, var_name="forma_pagamento", value_name="valor_liq")
             dfx_long["valor_liq"] = pd.to_numeric(dfx_long["valor_liq"], errors="coerce").fillna(0)
             dfx_long = dfx_long[dfx_long["valor_liq"] > 0].copy()
-
-            dfx_long["cod_pedido"] = (
-                "PRE-" + dfx_long.index.astype(str).str.zfill(4) + "-" +
-                dfx_long["data"].dt.strftime("%Y%m%d")
-            )
+            dfx_long["cod_pedido"] = "PRE-" + dfx_long.index.astype(str).str.zfill(4) + "-" + dfx_long["data"].dt.strftime("%Y%m%d")
             dfx_long["total_pedido"] = np.nan
-
             df = pd.concat([df, dfx_long[["cod_pedido", "valor_liq", "forma_pagamento", "data", "total_pedido"]]], ignore_index=True)
-
         def normaliza_pagto(x):
             s = str(x).strip().upper()
             if s in {"PIX", "PIX MANUAL", "A CONFIRMAR", "VALE REFEICAO", "VALE REFEIÇÃO"}:
                 return "PIX"
             return s
-
         df["forma_pagamento"] = df["forma_pagamento"].apply(normaliza_pagto)
         mask = (df["data"] >= pd.to_datetime(data_ini)) & (df["data"] <= pd.to_datetime(data_fim))
         dff = df.loc[mask].copy()
         dff = dff[~dff["data"].dt.weekday.isin([0, 1])]
-
-
         fat_total = float(dff["valor_liq"].sum())
         n_pedidos = int(dff["cod_pedido"].nunique())
         ticket_medio = fat_total / n_pedidos if n_pedidos else 0
         dias_periodo = max(1, (pd.to_datetime(data_fim) - pd.to_datetime(data_ini)).days + 1)
         fat_medio_dia = fat_total / dias_periodo
-
         k1, k2, k3, k4 = st.columns(4)
         k1.metric("Faturamento Total (R$)", br_money(fat_total))
         k2.metric("Total de Pedidos", f"{n_pedidos}")
         k3.metric("Ticket Médio (R$)", br_money(ticket_medio))
         k4.metric("Faturamento Médio/Dia (R$)", br_money(fat_medio_dia))
-
         st.divider()
-
         st.subheader("Evolução do Faturamento Diário")
-
         dff["dia"] = dff["data"].dt.date
-        fat_dia = (
-            dff.groupby("dia", as_index=False)["valor_liq"]
-            .sum()
-            .sort_values("dia")
-        )
-
+        fat_dia = dff.groupby("dia", as_index=False)["valor_liq"].sum().sort_values("dia")
         mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
         fat_dia["dow"] = pd.to_datetime(fat_dia["dia"]).dt.weekday.map(mapper)
-
-        fig_fat = px.line(
-            fat_dia,
-            x="dia", y="valor_liq",
-            markers=True,
-            labels={"dia":"Data","valor_liq":"Receita (R$)"},
-            color_discrete_sequence=TONS_TERROSOS
-        )
+        fig_fat = px.line(fat_dia, x="dia", y="valor_liq", markers=True, labels={"dia":"Data","valor_liq":"Receita (R$)"}, color_discrete_sequence=TONS_TERROSOS)
         fig_fat = estilizar_fig(fig_fat)
         fig_fat.update_xaxes(type="date", tickformat="%d/%m/%Y", ticklabelmode="period", tickangle=-45)
-        fig_fat.update_traces(
-            hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Receita: R$ %{y:.2f}",
-            customdata=fat_dia[["dow"]].to_numpy()
-        )
+        fig_fat.update_traces(hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Receita: R$ %{y:.2f}", customdata=fat_dia[["dow"]].to_numpy())
         st.plotly_chart(fig_fat, use_container_width=True, key="fat_linha_dia")
-
-
         st.divider()
-
         col_a, col_b = st.columns(2)
         with col_a:
             st.subheader("Receita por Forma de Pagamento")
@@ -436,69 +346,40 @@ with tab1:
             fat_dow = dff.groupby("dow", as_index=False)["valor_liq"].sum()
             fat_dow["dow"] = pd.Categorical(fat_dow["dow"], categories=ordem, ordered=True)
             fat_dow = fat_dow.sort_values("dow")
-           
             fig_dow = px.bar(fat_dow, x="dow", y="valor_liq", labels={"dow":"Dia da Semana","valor_liq":"Receita (R$)"})
             fig_dow = estilizar_fig(fig_dow)
             st.plotly_chart(fig_dow, use_container_width=True, key="fat_barras_dow")
             st.dataframe(nomes_legiveis(fat_dow.reset_index(drop=True)), use_container_width=True, hide_index=True)
 
-# ==========================================================
-# ABA PEDIDOS
-# ==========================================================
 with tab2:
-    dfp = (arq_pedidos, None)
-    if not carregou(dfp):
+    if not arq_pedidos.exists():
         st.info("Carregue a planilha de Pedidos para visualizar a aba Pedidos.")
     else:
-        dfp = dfp.copy()
+        dfp = pd.read_excel(arq_pedidos)
         dfp.columns = dfp.columns.str.strip()
         rename_map = {"Código":"codigo","Data Abertura":"data","Status":"status","Cliente":"cliente","Tipo":"tipo","Origem":"origem","Total":"total","Total Recebido":"total_recebido","Forma de Pagto":"forma_pagto"}
         dfp = dfp.rename(columns=rename_map)
         dfp["data"] = pd.to_datetime(dfp["data"], errors="coerce")
         maskp = (dfp["data"] >= pd.to_datetime(data_ini)) & (dfp["data"] <= pd.to_datetime(data_fim))
         dpp = dfp.loc[maskp].copy()
-       
-
         pedidos_total = int(dpp["codigo"].nunique())
         receita_periodo = float(dpp["total_recebido"].sum())
         ticket_medio = receita_periodo / pedidos_total if pedidos_total else 0
         clientes_unicos = int(dpp["cliente"].nunique())
-
         k1, k2, k3 = st.columns(3)
         k1.metric("Pedidos no período", f"{pedidos_total}")
         k2.metric("Ticket Médio (R$)", br_money(ticket_medio))
-
         st.divider()
-
         st.subheader("Evolução do Nº de Pedidos por Dia")
-
         dpp["dia"] = dpp["data"].dt.date
-        pedidos_por_dia = (
-            dpp.groupby("dia", as_index=False)["codigo"]
-            .nunique()
-            .rename(columns={"codigo": "pedidos"})
-            .sort_values("dia")
-        )
-
+        pedidos_por_dia = dpp.groupby("dia", as_index=False)["codigo"].nunique().rename(columns={"codigo": "pedidos"}).sort_values("dia")
         mapper = {0:"Seg",1:"Ter",2:"Qua",3:"Qui",4:"Sex",5:"Sáb",6:"Dom"}
         pedidos_por_dia["dow"] = pd.to_datetime(pedidos_por_dia["dia"]).dt.weekday.map(mapper)
-
-        fig_ped_dia = px.line(
-            pedidos_por_dia,
-            x="dia", y="pedidos",
-            markers=True,
-            labels={"dia":"Data", "pedidos":"Pedidos"},
-            color_discrete_sequence=TONS_TERROSOS
-        )
+        fig_ped_dia = px.line(pedidos_por_dia, x="dia", y="pedidos", markers=True, labels={"dia":"Data", "pedidos":"Pedidos"}, color_discrete_sequence=TONS_TERROSOS)
         fig_ped_dia = estilizar_fig(fig_ped_dia)
         fig_ped_dia.update_xaxes(tickformat="%d/%m/%Y")
-        fig_ped_dia.update_traces(
-            hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Pedidos: %{y}",
-            customdata=pedidos_por_dia[["dow"]].to_numpy()
-        )
+        fig_ped_dia.update_traces(hovertemplate="Data: %{x|%d/%m/%Y}<br>Dia da semana: %{customdata[0]}<br>Pedidos: %{y}", customdata=pedidos_por_dia[["dow"]].to_numpy())
         st.plotly_chart(fig_ped_dia, use_container_width=True, key="ped_linha_dia")
-
-
         c1, c2 = st.columns(2)
         with c1:
             st.subheader("Nº de Pedidos por Tipo")
@@ -515,52 +396,43 @@ with tab2:
             fig_rt.update_traces(textinfo="percent+label")
             st.plotly_chart(fig_rt, use_container_width=True, key="ped_pizza_tipo")
             st.dataframe(nomes_legiveis(receita_tipo.reset_index(drop=True)), use_container_width=True, hide_index=True)
-
         st.divider()
         st.subheader("Top 10 Clientes por Nº de Pedidos")
-
         dpp_top = dpp[~dpp["cliente"].astype(str).str.strip().str.lower().eq("não informado")]
-
         top_cli = (dpp_top.groupby("cliente", as_index=False)
                     .agg(pedidos=("codigo","nunique"), gasto=("total_recebido","sum"))
                     .sort_values(["pedidos","gasto"], ascending=[False, False])
                     .head(10)
                     .reset_index(drop=True))
-
         st.dataframe(nomes_legiveis(top_cli), use_container_width=True, hide_index=True)
 
-
-
-# ==========================================================
-# ABA CMV
-# ==========================================================    
-
-
-
 with tab3:
-    itens = (arq_itens, None)
-    c_pizzas = (arq_custo_pizzas, None)
-    c_bebidas = (arq_custo_bebidas, None)
-
-    if not (carregou(itens) and carregou(c_pizzas) and carregou(c_bebidas)):
+    if not (arq_itens.exists() and arq_custo_pizzas.exists() and arq_custo_bebidas.exists()):
         st.info("Carregue as planilhas: Itens Vendidos, Custo Pizzas e Custo Bebidas para visualizar a aba CMV.")
     else:
-        itens = itens.copy()
+        itens = pd.read_excel(arq_itens)
+        c_pizzas = pd.read_excel(arq_custo_pizzas)
+        c_bebidas = pd.read_excel(arq_custo_bebidas)
         itens.columns = itens.columns.str.strip()
-        itens = itens.rename(columns={"Data/Hora Item":"data_item","Qtd.":"qtd","Valor. Tot. Item":"valor_tot","Nome Prod":"nome_prod","Cat. Prod.":"cat_prod"})
+        itens = itens.rename(columns={
+            "Data/Hora Item": "data_item",
+            "Qtd.": "qtd",
+            "Valor. Tot. Item": "valor_tot",
+            "Nome Prod": "nome_prod",
+            "Cat. Prod.": "cat_prod",
+            "Cod. Ped.": "codigo"
+        })
         itens["nome_prod_norm"] = itens["nome_prod"].astype(str).str.strip()
         itens = itens[~itens["nome_prod_norm"].str.startswith("* Excluído *", na=False)].copy()
         itens["data_item"] = pd.to_datetime(itens["data_item"], errors="coerce")
         itens["qtd"] = pd.to_numeric(itens["qtd"], errors="coerce").fillna(0)
         itens["valor_tot"] = pd.to_numeric(itens["valor_tot"], errors="coerce").fillna(0)
         itens = itens.dropna(subset=["data_item"]).copy()
-
         def normalize_sizes(text):
             s = text.str.replace(r"\bGrande\b","G",regex=True)
             s = s.str.replace(r"\bM[eé]dia\b","M",regex=True)
             s = s.str.replace(r"\bPequena\b","P",regex=True)
             return s
-
         def normalize_key_general(s):
             t = s.astype(str)
             t = t.str.replace(r"^\s*Pizza\s+","",regex=True)
@@ -568,7 +440,6 @@ with tab3:
             t = t.str.replace(r"\bBENEVENUTO\b","CAPRICCIOSA",flags=re.IGNORECASE,regex=True)
             t = t.str.replace(r"\s{2,}"," ",regex=True).str.strip()
             return t
-
         def clean_nome_prod_hist(nome_series, cat_series):
             s = nome_series.astype(str)
             s = s.str.replace(r"^\s*Pizza\s+","",regex=True)
@@ -588,11 +459,9 @@ with tab3:
         if data_ini is not None and data_fim is not None:
             mask_periodo = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
         iv = itens.loc[mask_periodo].copy()
-
         iv["cat_norm"] = iv["cat_prod"].astype(str).str.upper().str.strip()
         iv["nome_limpo"] = clean_nome_prod_hist(iv["nome_prod"], iv["cat_prod"])
         iv["valor_base"] = iv["valor_tot"] * iv["qtd"]
-
         c_pizzas = c_pizzas.copy()
         c_bebidas = c_bebidas.copy()
         c_pizzas.columns = c_pizzas.columns.str.strip()
@@ -601,14 +470,50 @@ with tab3:
         c_bebidas["_KEY"] = normalize_key_general(c_bebidas["produto"])
         lookup_pizza = c_pizzas.set_index("_KEY")["custo"]
         lookup_bebida = c_bebidas.set_index("_KEY")["custo"]
-
         iv["custo_pizza"] = iv["nome_limpo"].map(lookup_pizza)
         iv["custo_bebida"] = iv["nome_limpo"].map(lookup_bebida)
         iv["custo_unit"] = iv["custo_pizza"].combine_first(iv["custo_bebida"])
-
         mask_complemento = iv["cat_norm"].eq("COMPLEMENTO")
         iv["cmv_item"] = np.where(mask_complemento, 0.5 * iv["valor_base"], iv["custo_unit"] * iv["qtd"])
-
+        if arq_compras.exists() and arq_pedidos.exists():
+            dfc = pd.read_excel(arq_compras)
+            dfp_min = pd.read_excel(arq_pedidos)
+            dfc = dfc.copy()
+            dfc.columns = dfc.columns.str.strip()
+            alvo = ["CAIXA PIZZA G", "CAIXA PIZZA M", "CAIXA PIZZA P"]
+            dfc = dfc[dfc["nome_interno"].isin(alvo)].copy()
+            dfc = dfc.dropna(subset=["valor_por_unidade"]).copy()
+            dfc = dfc.groupby("nome_interno", as_index=False).last()
+            preco_caixa = {
+                "G": float(dfc.loc[dfc["nome_interno"].eq("CAIXA PIZZA G"), "valor_por_unidade"].iloc[0]) if (dfc["nome_interno"]=="CAIXA PIZZA G").any() else np.nan,
+                "M": float(dfc.loc[dfc["nome_interno"].eq("CAIXA PIZZA M"), "valor_por_unidade"].iloc[0]) if (dfc["nome_interno"]=="CAIXA PIZZA M").any() else np.nan,
+                "P": float(dfc.loc[dfc["nome_interno"].eq("CAIXA PIZZA P"), "valor_por_unidade"].iloc[0]) if (dfc["nome_interno"]=="CAIXA PIZZA P").any() else np.nan,
+            }
+            dfp_min = dfp_min.copy()
+            dfp_min.columns = dfp_min.columns.str.strip()
+            dfp_min = dfp_min.rename(columns={"Código": "codigo", "Tipo": "tipo"})
+            dfp_min = dfp_min[["codigo", "tipo"]].dropna(subset=["codigo"]).copy()
+            iv = iv.merge(dfp_min, on="codigo", how="left")
+            iv["tamanho_pizza"] = iv["nome_limpo"].str.extract(r"\b([GMP])\b", expand=False)
+            mask_tipo = iv["tipo"].isin(["Delivery", "Balcão", "Balcao", "Caixa"])
+            mask_cat = iv["cat_norm"].isin(["PIZZAS", "CARNES", "PORÇÕES"])
+            mask_sz = iv["tamanho_pizza"].isin(["G", "M", "P"])
+            m = mask_tipo & mask_cat & mask_sz
+            if m.any():
+                iv.loc[m, "qtd_total_tmp"] = iv.loc[m].groupby(["codigo", "tamanho_pizza"])["qtd"].transform("sum")
+                iv.loc[m, "share_tmp"] = np.where(iv.loc[m, "qtd_total_tmp"] > 0, iv.loc[m, "qtd"] / iv.loc[m, "qtd_total_tmp"], 0.0)
+                grp = (
+                    iv.loc[m]
+                    .groupby(["codigo", "tamanho_pizza"], as_index=False)
+                    .agg(qtd_total=("qtd", "sum"))
+                )
+                grp["n_caixas"] = np.floor(grp["qtd_total"] + 0.5)
+                grp["preco_caixa_unit"] = grp["tamanho_pizza"].map(preco_caixa).astype(float)
+                grp["custo_caixa_total"] = grp["n_caixas"] * grp["preco_caixa_unit"]
+                iv = iv.merge(grp[["codigo", "tamanho_pizza", "custo_caixa_total"]], on=["codigo", "tamanho_pizza"], how="left")
+                iv["custo_caixa_alocado"] = np.where(m, iv["share_tmp"] * iv["custo_caixa_total"], 0.0)
+                iv["cmv_item"] = iv["cmv_item"] + iv["custo_caixa_alocado"].fillna(0.0)
+                iv.drop(columns=["qtd_total_tmp", "share_tmp", "custo_caixa_total", "custo_caixa_alocado"], errors="ignore", inplace=True)
         cmv_total = float(iv["cmv_item"].sum(skipna=True))
         pre_receita_total = 0.0
         if arq_pre.exists():
@@ -624,10 +529,7 @@ with tab3:
             pre_receita_total = float(dfx_long.loc[mask_pre, "valor_liq"].sum())
             cmv_extra_pre = 0.30 * pre_receita_total
             cmv_total = cmv_total + cmv_extra_pre
-
         st.metric("CMV Total (R$)", br_money(cmv_total))
-
-
         def meses_ciclo_ancora(ini, fim):
             ini = pd.to_datetime(ini).date()
             fim = pd.to_datetime(fim).date()
@@ -643,7 +545,6 @@ with tab3:
                 y, m = (y + 1, 1) if m == 12 else (y, m + 1)
                 cini, cfim = ciclo_12_12_bounds(y, m)
             return set(meses)
-
         def custos_fixos_periodo(df_custos, data_ini, data_fim):
             dfc = df_custos.copy()
             dfc.columns = dfc.columns.str.strip()
@@ -663,11 +564,9 @@ with tab3:
             aloc = aloc[["Mês","descricao","valor"]].rename(columns={"descricao":"Descrição","valor":"Valor (R$)"})
             total = float(aloc["Valor (R$)"].sum())
             return total, aloc
-
-        df_contas_custos = (arq_contas, None)
         receita_total = 0.0
-        if carregou(df_contas_custos):
-            dfc2 = df_contas_custos.copy()
+        if arq_contas.exists():
+            dfc2 = pd.read_excel(arq_contas)
             dfc2.columns = dfc2.columns.str.strip()
             dfc2 = dfc2.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data"})
             dfc2["data"] = pd.to_datetime(dfc2["data"], errors="coerce")
@@ -683,19 +582,15 @@ with tab3:
             dfr = dfr[~dfr["data"].dt.weekday.isin([0, 1])]
             receita_total = float(dfr["valor_liq"].sum())
             receita_total = receita_total + pre_receita_total
-
-        df_cfix = (None, arq_custos_fixos)
-
         dias_periodo = (pd.to_datetime(data_fim) - pd.to_datetime(data_ini)).days + 1
         total_cfix, tabela_cfix = 0.0, pd.DataFrame()
-        if dias_periodo >= 30 and carregou(df_cfix):
-            total_cfix, tabela_cfix = custos_fixos_periodo(df_cfix, data_ini, data_fim)
-
+        if dias_periodo >= 30 and arq_custos_fixos.exists():
+            _cfix = pd.read_excel(arq_custos_fixos)
+            total_cfix, tabela_cfix = custos_fixos_periodo(_cfix, data_ini, data_fim)
         margem_bruta = receita_total - cmv_total
         margem_bruta_pct = (margem_bruta / receita_total * 100) if receita_total else 0.0
         margem_liquida = receita_total - cmv_total - total_cfix
         margem_liquida_pct = (margem_liquida / receita_total * 100) if receita_total else 0.0
-
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         kpi1.metric("Receita (R$)", br_money(receita_total))
         kpi2.metric("CMV (R$)", br_money(cmv_total))
@@ -703,7 +598,6 @@ with tab3:
         kpi4.metric("Margem Bruta (%)", f"{margem_bruta_pct:.1f}%")
         kpi5.metric("Custos Fixos (R$)", br_money(total_cfix))
         kpi6.metric("Margem Líquida (R$)", br_money(margem_liquida))
-
         st.subheader("Custos Fixos no Período")
         if dias_periodo < 30:
             st.info("Período menor que 30 dias: custos fixos e margem líquida ignorados.")
@@ -712,8 +606,6 @@ with tab3:
                 st.dataframe(nomes_legiveis(tabela_cfix.reset_index(drop=True)), use_container_width=True, hide_index=True)
             else:
                 st.info("Sem custos fixos para o período selecionado ou arquivo ausente.")
-
-
         tabela = iv.groupby(["nome_limpo"],as_index=False).agg(
             categoria=("cat_norm","first"),
             qtd=("qtd","sum"),
@@ -723,9 +615,7 @@ with tab3:
         tabela["margem"] = tabela["receita"] - tabela["cmv"]
         tabela["margem_%"] = (tabela["margem"] / tabela["receita"] * 100).round(1)
         tabela = tabela.rename(columns={"nome_limpo":"produto"}).sort_values("cmv", ascending=False).reset_index(drop=True)
-
         st.dataframe(nomes_legiveis(tabela), use_container_width=True, hide_index=True)
-
         mask_sem_custo = iv["custo_unit"].isna() & ~mask_complemento
         diag_sem_custo = (iv.loc[mask_sem_custo, ["nome_prod","nome_limpo","cat_prod","qtd","valor_tot","valor_base"]]
                             .assign(ocorrencias=1)
@@ -735,4 +625,3 @@ with tab3:
                             .sort_values(["ocorrencias","valor_total"], ascending=[False, False]))
         if not diag_sem_custo.empty:
             st.divider()
-            
