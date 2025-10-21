@@ -11,12 +11,16 @@ CUSTOS_DIR = Path(r"C:\Users\jvand\Desktop\Adoro Pizza")
 
 ARQ_CUSTO_BEBIDAS_ORIG = CUSTOS_DIR / "custo bebidas.xlsx"
 ARQ_CUSTO_PIZZAS_ORIG  = CUSTOS_DIR / "custo_pizzas.xlsx"
+ARQ_CUSTOS_FIXOS_ORIG = CUSTOS_DIR / "custos fixos.xlsx"
+
 
 DEST_HIST     = DATA_DIR / "Historico_Itens_Vendidos.xlsx"
 DEST_PEDIDOS  = DATA_DIR / "Todos os pedidos.xlsx"
 DEST_RECEBER  = DATA_DIR / "Lista-contas-receber.xlsx"
 DEST_BEBIDAS  = DATA_DIR / "custo bebidas.xlsx"
 DEST_PIZZAS   = DATA_DIR / "custo_pizzas.xlsx"
+DEST_CUSTOS_FIXOS = DATA_DIR / "custos fixos.xlsx"
+
 
 RX_ITENS = re.compile(r"^Historico_Itens_Vendidos de (\d{2}-\d{2}-\d{2}) à (\d{2}-\d{2}-\d{2})\.xlsx$", re.IGNORECASE)
 RX_PEDIDOS = re.compile(r"^Todos os pedidos\s+Data de Abertura\s*\[(\d{2}-\d{2}-\d{4})\s*\d{4}\s*-\s*(\d{2}-\d{2}-\d{4})\s*\d{4}\]\.xlsx$", re.IGNORECASE)
@@ -77,6 +81,8 @@ def main():
     copiar(receber, DEST_RECEBER, "Lista de Contas a Receber")
     copiar(ARQ_CUSTO_BEBIDAS_ORIG, DEST_BEBIDAS, "Custo Bebidas")
     copiar(ARQ_CUSTO_PIZZAS_ORIG,  DEST_PIZZAS,  "Custo Pizzas")
+    copiar(ARQ_CUSTOS_FIXOS_ORIG, DEST_CUSTOS_FIXOS, "Custos Fixos")
+
 
     msg = f"Atualização automática - {datetime.now():%Y-%m-%d %H:%M}"
     git_commit_push(REPO_DIR, msg)
