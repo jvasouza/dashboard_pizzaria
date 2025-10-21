@@ -298,11 +298,34 @@ def nomes_legiveis(df):
 # ==========================================================
 
 df_periodo_base = carregar_primeira_aba_xlsx(arq_contas, None)
+arq_pre_range = DATA / "recebimentos_ate_25.04.xlsx"
+df_pre_range = carregar_primeira_aba_xlsx(None, arq_pre_range)
+
+series_list = []
+
 if carregou(df_periodo_base) and "Crédito" in df_periodo_base.columns:
-    df_periodo_base["Crédito"] = pd.to_datetime(df_periodo_base["Crédito"], errors="coerce")
-    data_ini, data_fim = filtro_periodo_global(df_periodo_base["Crédito"])
+    series_list.append(pd.to_datetime(df_periodo_base["Crédito"], errors="coerce"))
+
+if carregou(df_pre_range):
+    cols = df_pre_range.columns.str.strip()
+    if "data" in cols: 
+        series_list.append(pd.to_datetime(df_pre_range["data"], errors="coerce"))
+    elif "Data" in cols: 
+        series_list.append(pd.to_datetime(df_pre_range["Data"], errors="coerce"))
+    elif "Crédito" in cols: 
+        series_list.append(pd.to_datetime(df_pre_range["Crédito"], errors="coerce"))
+    elif "Credito" in cols:
+        series_list.append(pd.to_datetime(df_pre_range["Credito"], errors="coerce"))
+
+if series_list:
+    base_series = pd.concat(series_list, ignore_index=True).dropna()
+    if not base_series.empty:
+        data_ini, data_fim = filtro_periodo_global(base_series)
+    else:
+        data_ini, data_fim = None, None
 else:
     data_ini, data_fim = None, None
+
 
 tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 
