@@ -99,6 +99,10 @@ arq_custos_fixos = DATA / "custos fixos.xlsx"
 arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
 arq_compras = DATA / "compras.xlsx"
 
+# Helper simples para ler .xlsx sempre com openpyxl
+def xlsx(p: Path) -> pd.DataFrame:
+    return pd.read_excel(p, engine="openpyxl")
+
 ANCHOR_DAY = 12
 CYCLE_START_OFFSET = 1
 
@@ -250,16 +254,17 @@ def nomes_legiveis(df):
                 df_formatado[col] = df_formatado[col].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
     return df_formatado
 
+# ===== Seleção do período: carregar datas das planilhas reais (sem tuplas) =====
 base_dates = []
 if arq_contas.exists():
-    _contas = pd.read_excel(arq_contas)
+    _contas = xlsx(arq_contas)
     _contas.columns = _contas.columns.str.strip()
     for cand in ["Crédito", "Credito", "Data"]:
         if cand in _contas.columns:
             base_dates.append(pd.to_datetime(_contas[cand], errors="coerce"))
             break
 if arq_pre.exists():
-    _pre = pd.read_excel(arq_pre)
+    _pre = xlsx(arq_pre)
     _pre.columns = _pre.columns.str.strip()
     for cand in ["data", "Data", "Crédito", "Credito"]:
         if cand in _pre.columns:
@@ -276,18 +281,21 @@ else:
 
 tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 
+# ==========================================================
+# ABA FATURAMENTO
+# ==========================================================
 with tab1:
     if not arq_contas.exists():
         st.info("Carregue a planilha de Contas a Receber para visualizar a aba Faturamento.")
     else:
-        df = pd.read_excel(arq_contas)
+        df = xlsx(arq_contas)
         df.columns = df.columns.str.strip()
         arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
         df = df.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data","Total Pedido":"total_pedido"})
         df["data"] = pd.to_datetime(df["data"], errors="coerce")
         df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce")
         if arq_pre.exists():
-            dfx = pd.read_excel(arq_pre)
+            dfx = xlsx(arq_pre)
             dfx.columns = dfx.columns.str.strip()
             dfx = dfx.rename(columns={"Data": "data"})
             dfx["data"] = pd.to_datetime(dfx["data"], errors="coerce")
@@ -351,11 +359,14 @@ with tab1:
             st.plotly_chart(fig_dow, use_container_width=True, key="fat_barras_dow")
             st.dataframe(nomes_legiveis(fat_dow.reset_index(drop=True)), use_container_width=True, hide_index=True)
 
+# ==========================================================
+# ABA PEDIDOS
+# ==========================================================
 with tab2:
     if not arq_pedidos.exists():
         st.info("Carregue a planilha de Pedidos para visualizar a aba Pedidos.")
     else:
-        dfp = pd.read_excel(arq_pedidos)
+        dfp = xlsx(arq_pedidos)
         dfp.columns = dfp.columns.str.strip()
         rename_map = {"Código":"codigo","Data Abertura":"data","Status":"status","Cliente":"cliente","Tipo":"tipo","Origem":"origem","Total":"total","Total Recebido":"total_recebido","Forma de Pagto":"forma_pagto"}
         dfp = dfp.rename(columns=rename_map)
@@ -406,13 +417,17 @@ with tab2:
                     .reset_index(drop=True))
         st.dataframe(nomes_legiveis(top_cli), use_container_width=True, hide_index=True)
 
+# ==========================================================
+# ABA CMV
+# ==========================================================
 with tab3:
     if not (arq_itens.exists() and arq_custo_pizzas.exists() and arq_custo_bebidas.exists()):
         st.info("Carregue as planilhas: Itens Vendidos, Custo Pizzas e Custo Bebidas para visualizar a aba CMV.")
     else:
-        itens = pd.read_excel(arq_itens)
-        c_pizzas = pd.read_excel(arq_custo_pizzas)
-        c_bebidas = pd.read_excel(arq_custo_bebidas)
+        itens = xlsx(arq_itens)
+        c_pizzas = xlsx(arq_custo_pizzas)
+        c_bebidas = xlsx(arq_custo_bebidas)
+
         itens.columns = itens.columns.str.strip()
         itens = itens.rename(columns={
             "Data/Hora Item": "data_item",
@@ -428,6 +443,7 @@ with tab3:
         itens["qtd"] = pd.to_numeric(itens["qtd"], errors="coerce").fillna(0)
         itens["valor_tot"] = pd.to_numeric(itens["valor_tot"], errors="coerce").fillna(0)
         itens = itens.dropna(subset=["data_item"]).copy()
+
         def normalize_sizes(text):
             s = text.str.replace(r"\bGrande\b","G",regex=True)
             s = s.str.replace(r"\bM[eé]dia\b","M",regex=True)
@@ -455,13 +471,16 @@ with tab3:
             s2.loc[mask_rodizio] = "RODÍZIO DE PIZZA"
             s2 = s2.str.replace(r"\s{2,}"," ",regex=True).str.strip()
             return s2
+
         mask_periodo = True
         if data_ini is not None and data_fim is not None:
             mask_periodo = (itens["data_item"] >= pd.to_datetime(data_ini)) & (itens["data_item"] <= pd.to_datetime(data_fim))
         iv = itens.loc[mask_periodo].copy()
+
         iv["cat_norm"] = iv["cat_prod"].astype(str).str.upper().str.strip()
         iv["nome_limpo"] = clean_nome_prod_hist(iv["nome_prod"], iv["cat_prod"])
         iv["valor_base"] = iv["valor_tot"] * iv["qtd"]
+
         c_pizzas = c_pizzas.copy()
         c_bebidas = c_bebidas.copy()
         c_pizzas.columns = c_pizzas.columns.str.strip()
@@ -470,14 +489,18 @@ with tab3:
         c_bebidas["_KEY"] = normalize_key_general(c_bebidas["produto"])
         lookup_pizza = c_pizzas.set_index("_KEY")["custo"]
         lookup_bebida = c_bebidas.set_index("_KEY")["custo"]
+
         iv["custo_pizza"] = iv["nome_limpo"].map(lookup_pizza)
         iv["custo_bebida"] = iv["nome_limpo"].map(lookup_bebida)
         iv["custo_unit"] = iv["custo_pizza"].combine_first(iv["custo_bebida"])
+
         mask_complemento = iv["cat_norm"].eq("COMPLEMENTO")
         iv["cmv_item"] = np.where(mask_complemento, 0.5 * iv["valor_base"], iv["custo_unit"] * iv["qtd"])
+
         if arq_compras.exists() and arq_pedidos.exists():
-            dfc = pd.read_excel(arq_compras)
-            dfp_min = pd.read_excel(arq_pedidos)
+            dfc = xlsx(arq_compras)
+            dfp_min = xlsx(arq_pedidos)
+
             dfc = dfc.copy()
             dfc.columns = dfc.columns.str.strip()
             alvo = ["CAIXA PIZZA G", "CAIXA PIZZA M", "CAIXA PIZZA P"]
@@ -489,19 +512,25 @@ with tab3:
                 "M": float(dfc.loc[dfc["nome_interno"].eq("CAIXA PIZZA M"), "valor_por_unidade"].iloc[0]) if (dfc["nome_interno"]=="CAIXA PIZZA M").any() else np.nan,
                 "P": float(dfc.loc[dfc["nome_interno"].eq("CAIXA PIZZA P"), "valor_por_unidade"].iloc[0]) if (dfc["nome_interno"]=="CAIXA PIZZA P").any() else np.nan,
             }
+
             dfp_min = dfp_min.copy()
             dfp_min.columns = dfp_min.columns.str.strip()
             dfp_min = dfp_min.rename(columns={"Código": "codigo", "Tipo": "tipo"})
             dfp_min = dfp_min[["codigo", "tipo"]].dropna(subset=["codigo"]).copy()
+
             iv = iv.merge(dfp_min, on="codigo", how="left")
+
             iv["tamanho_pizza"] = iv["nome_limpo"].str.extract(r"\b([GMP])\b", expand=False)
+
             mask_tipo = iv["tipo"].isin(["Delivery", "Balcão", "Balcao", "Caixa"])
             mask_cat = iv["cat_norm"].isin(["PIZZAS", "CARNES", "PORÇÕES"])
             mask_sz = iv["tamanho_pizza"].isin(["G", "M", "P"])
             m = mask_tipo & mask_cat & mask_sz
+
             if m.any():
                 iv.loc[m, "qtd_total_tmp"] = iv.loc[m].groupby(["codigo", "tamanho_pizza"])["qtd"].transform("sum")
                 iv.loc[m, "share_tmp"] = np.where(iv.loc[m, "qtd_total_tmp"] > 0, iv.loc[m, "qtd"] / iv.loc[m, "qtd_total_tmp"], 0.0)
+
                 grp = (
                     iv.loc[m]
                     .groupby(["codigo", "tamanho_pizza"], as_index=False)
@@ -510,14 +539,17 @@ with tab3:
                 grp["n_caixas"] = np.floor(grp["qtd_total"] + 0.5)
                 grp["preco_caixa_unit"] = grp["tamanho_pizza"].map(preco_caixa).astype(float)
                 grp["custo_caixa_total"] = grp["n_caixas"] * grp["preco_caixa_unit"]
+
                 iv = iv.merge(grp[["codigo", "tamanho_pizza", "custo_caixa_total"]], on=["codigo", "tamanho_pizza"], how="left")
                 iv["custo_caixa_alocado"] = np.where(m, iv["share_tmp"] * iv["custo_caixa_total"], 0.0)
                 iv["cmv_item"] = iv["cmv_item"] + iv["custo_caixa_alocado"].fillna(0.0)
+
                 iv.drop(columns=["qtd_total_tmp", "share_tmp", "custo_caixa_total", "custo_caixa_alocado"], errors="ignore", inplace=True)
+
         cmv_total = float(iv["cmv_item"].sum(skipna=True))
         pre_receita_total = 0.0
         if arq_pre.exists():
-            dfx = pd.read_excel(arq_pre)
+            dfx = xlsx(arq_pre)
             dfx.columns = dfx.columns.str.strip()
             if "Data" in dfx.columns and "data" not in dfx.columns:
                 dfx = dfx.rename(columns={"Data":"data"})
@@ -529,7 +561,9 @@ with tab3:
             pre_receita_total = float(dfx_long.loc[mask_pre, "valor_liq"].sum())
             cmv_extra_pre = 0.30 * pre_receita_total
             cmv_total = cmv_total + cmv_extra_pre
+
         st.metric("CMV Total (R$)", br_money(cmv_total))
+
         def meses_ciclo_ancora(ini, fim):
             ini = pd.to_datetime(ini).date()
             fim = pd.to_datetime(fim).date()
@@ -545,6 +579,7 @@ with tab3:
                 y, m = (y + 1, 1) if m == 12 else (y, m + 1)
                 cini, cfim = ciclo_12_12_bounds(y, m)
             return set(meses)
+
         def custos_fixos_periodo(df_custos, data_ini, data_fim):
             dfc = df_custos.copy()
             dfc.columns = dfc.columns.str.strip()
@@ -564,9 +599,10 @@ with tab3:
             aloc = aloc[["Mês","descricao","valor"]].rename(columns={"descricao":"Descrição","valor":"Valor (R$)"})
             total = float(aloc["Valor (R$)"].sum())
             return total, aloc
+
         receita_total = 0.0
         if arq_contas.exists():
-            dfc2 = pd.read_excel(arq_contas)
+            dfc2 = xlsx(arq_contas)
             dfc2.columns = dfc2.columns.str.strip()
             dfc2 = dfc2.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data"})
             dfc2["data"] = pd.to_datetime(dfc2["data"], errors="coerce")
@@ -582,15 +618,18 @@ with tab3:
             dfr = dfr[~dfr["data"].dt.weekday.isin([0, 1])]
             receita_total = float(dfr["valor_liq"].sum())
             receita_total = receita_total + pre_receita_total
+
         dias_periodo = (pd.to_datetime(data_fim) - pd.to_datetime(data_ini)).days + 1
         total_cfix, tabela_cfix = 0.0, pd.DataFrame()
         if dias_periodo >= 30 and arq_custos_fixos.exists():
-            _cfix = pd.read_excel(arq_custos_fixos)
+            _cfix = xlsx(arq_custos_fixos)
             total_cfix, tabela_cfix = custos_fixos_periodo(_cfix, data_ini, data_fim)
+
         margem_bruta = receita_total - cmv_total
         margem_bruta_pct = (margem_bruta / receita_total * 100) if receita_total else 0.0
         margem_liquida = receita_total - cmv_total - total_cfix
         margem_liquida_pct = (margem_liquida / receita_total * 100) if receita_total else 0.0
+
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
         kpi1.metric("Receita (R$)", br_money(receita_total))
         kpi2.metric("CMV (R$)", br_money(cmv_total))
@@ -598,6 +637,7 @@ with tab3:
         kpi4.metric("Margem Bruta (%)", f"{margem_bruta_pct:.1f}%")
         kpi5.metric("Custos Fixos (R$)", br_money(total_cfix))
         kpi6.metric("Margem Líquida (R$)", br_money(margem_liquida))
+
         st.subheader("Custos Fixos no Período")
         if dias_periodo < 30:
             st.info("Período menor que 30 dias: custos fixos e margem líquida ignorados.")
@@ -606,6 +646,7 @@ with tab3:
                 st.dataframe(nomes_legiveis(tabela_cfix.reset_index(drop=True)), use_container_width=True, hide_index=True)
             else:
                 st.info("Sem custos fixos para o período selecionado ou arquivo ausente.")
+
         tabela = iv.groupby(["nome_limpo"],as_index=False).agg(
             categoria=("cat_norm","first"),
             qtd=("qtd","sum"),
@@ -615,7 +656,9 @@ with tab3:
         tabela["margem"] = tabela["receita"] - tabela["cmv"]
         tabela["margem_%"] = (tabela["margem"] / tabela["receita"] * 100).round(1)
         tabela = tabela.rename(columns={"nome_limpo":"produto"}).sort_values("cmv", ascending=False).reset_index(drop=True)
+
         st.dataframe(nomes_legiveis(tabela), use_container_width=True, hide_index=True)
+
         mask_sem_custo = iv["custo_unit"].isna() & ~mask_complemento
         diag_sem_custo = (iv.loc[mask_sem_custo, ["nome_prod","nome_limpo","cat_prod","qtd","valor_tot","valor_base"]]
                             .assign(ocorrencias=1)
