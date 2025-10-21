@@ -146,7 +146,8 @@ def listar_ciclos_mensais(series_dt):
     nomes_pt = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     ciclos = []
     for m in range(1, 12 + 1):
-        ini, fim = ciclo_12_12_bounds(ano, m)
+        offset = 0 if m == 4 else CYCLE_START_OFFSET
+        ini, fim = ciclo_12_12_bounds(ano, m, anchor_day=ANCHOR_DAY, start_offset=offset)
         if not (fim < dt_min or ini > dt_max):
             nome_mes = nomes_pt[m-1]
             ciclos.append((nome_mes, ini, fim))
