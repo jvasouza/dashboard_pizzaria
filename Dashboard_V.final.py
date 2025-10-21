@@ -572,6 +572,8 @@ with tab3:
         st.metric("CMV Total (R$)", br_money(cmv_total))
 
         def meses_ciclo_ancora(ini, fim):
+            ini = pd.to_datetime(ini).date()
+            fim = pd.to_datetime(fim).date()
             y, m = ini.year, ini.month
             cini, cfim = ciclo_12_12_bounds(y, m)
             while cfim <= ini:
