@@ -10,6 +10,7 @@ import locale
 import plotly.io as pio
 from PIL import Image
 import numpy as np
+import os
 
 
 def estilizar_fig(fig):
@@ -229,13 +230,26 @@ def filtro_periodo_global(series_dt):
     return dini, dfim
 
 def carregar_primeira_aba_xlsx(arquivo, caminho):
-    if arquivo:
-        xls = pd.ExcelFile(arquivo)
-        return pd.read_excel(xls, sheet_name=xls.sheet_names[0])
-    if caminho:
-        xls = pd.ExcelFile(caminho)
-        return pd.read_excel(xls, sheet_name=xls.sheet_names[0])
-    return None
+    def _read(p):
+        # força engine e primeira aba
+        return pd.read_excel(p, sheet_name=0, engine="openpyxl")
+
+    try:
+        if arquivo:
+            return _read(arquivo)
+        if caminho:
+            return _read(caminho)
+        return None
+    except Exception as e:
+        # ajuda no diagnóstico dentro do app
+        try:
+            p = arquivo or caminho
+            size = os.path.getsize(p) if p else 0
+        except Exception:
+            size = "?"
+        st.error(f"Falha ao abrir Excel: {arquivo or caminho} (tamanho={size} bytes)\n\n{e}")
+        raise
+
 
 def carregou(df):
     return df is not None and len(df) > 0
