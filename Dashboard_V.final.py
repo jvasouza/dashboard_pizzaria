@@ -228,14 +228,6 @@ def filtro_periodo_global(series_dt):
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
     return dini, dfim
 
-def carregar_primeira_aba_xlsx(arquivo, caminho):
-    if arquivo:
-        xls = pd.ExcelFile(arquivo)
-        return pd.read_excel(xls, sheet_name=xls.sheet_names[0])
-    if caminho:
-        xls = pd.ExcelFile(caminho)
-        return pd.read_excel(xls, sheet_name=xls.sheet_names[0])
-    return None
 
 def carregou(df):
     return df is not None and len(df) > 0
@@ -302,9 +294,9 @@ def nomes_legiveis(df):
 # INÍCIO DASHBOARD
 # ==========================================================
 
-df_periodo_base = carregar_primeira_aba_xlsx(arq_contas, None)
+df_periodo_base = (arq_contas, None)
 arq_pre_range = DATA / "recebimentos_ate_25.04.xlsx"
-df_pre_range = carregar_primeira_aba_xlsx(None, arq_pre_range)
+df_pre_range = (None, arq_pre_range)
 
 series_list = []
 
@@ -339,7 +331,7 @@ tab1, tab2, tab3 = st.tabs(["Faturamento", "Pedidos", "CMV"])
 # ABA FATURAMENTO
 # ==========================================================
 with tab1:
-    df = carregar_primeira_aba_xlsx(arq_contas, None)
+    df = (arq_contas, None)
     if not carregou(df):
         st.info("Carregue a planilha de Contas a Receber para visualizar a aba Faturamento.")
     else:
@@ -349,7 +341,7 @@ with tab1:
         df = df.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data","Total Pedido":"total_pedido"})
         df["data"] = pd.to_datetime(df["data"], errors="coerce")
         df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce")
-        df_pre = carregar_primeira_aba_xlsx(None, arq_pre)
+        df_pre = (None, arq_pre)
         if carregou(df_pre):
             dfx = df_pre.copy()
             dfx.columns = dfx.columns.str.strip()
@@ -454,7 +446,7 @@ with tab1:
 # ABA PEDIDOS
 # ==========================================================
 with tab2:
-    dfp = carregar_primeira_aba_xlsx(arq_pedidos, None)
+    dfp = (arq_pedidos, None)
     if not carregou(dfp):
         st.info("Carregue a planilha de Pedidos para visualizar a aba Pedidos.")
     else:
@@ -546,9 +538,9 @@ with tab2:
 
 
 with tab3:
-    itens = carregar_primeira_aba_xlsx(arq_itens, None)
-    c_pizzas = carregar_primeira_aba_xlsx(arq_custo_pizzas, None)
-    c_bebidas = carregar_primeira_aba_xlsx(arq_custo_bebidas, None)
+    itens = (arq_itens, None)
+    c_pizzas = (arq_custo_pizzas, None)
+    c_bebidas = (arq_custo_bebidas, None)
 
     if not (carregou(itens) and carregou(c_pizzas) and carregou(c_bebidas)):
         st.info("Carregue as planilhas: Itens Vendidos, Custo Pizzas e Custo Bebidas para visualizar a aba CMV.")
@@ -672,7 +664,7 @@ with tab3:
             total = float(aloc["Valor (R$)"].sum())
             return total, aloc
 
-        df_contas_custos = carregar_primeira_aba_xlsx(arq_contas, None)
+        df_contas_custos = (arq_contas, None)
         receita_total = 0.0
         if carregou(df_contas_custos):
             dfc2 = df_contas_custos.copy()
@@ -692,7 +684,7 @@ with tab3:
             receita_total = float(dfr["valor_liq"].sum())
             receita_total = receita_total + pre_receita_total
 
-        df_cfix = carregar_primeira_aba_xlsx(None, arq_custos_fixos)
+        df_cfix = (None, arq_custos_fixos)
 
         dias_periodo = (pd.to_datetime(data_fim) - pd.to_datetime(data_ini)).days + 1
         total_cfix, tabela_cfix = 0.0, pd.DataFrame()
