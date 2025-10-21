@@ -317,10 +317,55 @@ with tab1:
     else:
         df = df.copy()
         df.columns = df.columns.str.strip()
-        df = df.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data","Total Pedido":"total_pedido"})
-        df["data"] = pd.to_datetime(df["data"], errors="coerce")
-        df = df.dropna(subset=["data","valor_liq","cod_pedido"]).copy()
-        df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce").fillna(0)
+        arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
+        df_pre = carregar_primeira_aba_xlsx(None, arq_pre)
+        if carregou(df_pre):
+            dfx = df_pre.copy()
+            dfx.columns = dfx.columns.str.strip()
+
+            def pick(colnames, options):
+                for opt in options:
+                    if opt in colnames:
+                        return opt
+                return None
+
+            cname = dfx.columns
+            c_data  = pick(cname, ["data","Data","DATA","Crédito","Credito"])
+            c_valor = pick(cname, ["valor","Valor","VALOR","Valor Líq.","Valor Liq","VALOR LÍQ."])
+            c_forma = pick(cname, ["forma_pagamento","Forma Pagamento","FORMA PAGAMENTO","Forma","FORMA"])
+            if c_data is None or c_valor is None:
+                pass
+            else:
+                dfx = dfx.rename(columns={c_data:"data", c_valor:"valor_liq"})
+                if c_forma and c_forma != "forma_pagamento":
+                    dfx = dfx.rename(columns={c_forma:"forma_pagamento"})
+                if "forma_pagamento" not in dfx.columns:
+                    dfx["forma_pagamento"] = "OUTROS"
+
+                dfx["data"] = pd.to_datetime(dfx["data"], errors="coerce")
+                dfx["valor_liq"] = pd.to_numeric(dfx["valor_liq"], errors="coerce")
+                dfx = dfx.dropna(subset=["data","valor_liq"]).copy()
+
+                if "cod_pedido" not in dfx.columns:
+                    dfx = dfx.reset_index(drop=True)
+                    dfx["cod_pedido"] = (
+                        "PRE-" + dfx.index.astype(str).str.zfill(4) + "-" +
+                        dfx["data"].dt.strftime("%Y%m%d")
+                    )
+
+                def normaliza_pagto_pre(x):
+                    s = str(x).strip().upper()
+                    if s in {"PIX", "PIX MANUAL", "A CONFIRMAR", "VALE REFEICAO", "VALE REFEIÇÃO"}:
+                        return "PIX"
+                    return s
+
+                dfx["forma_pagamento"] = dfx["forma_pagamento"].apply(normaliza_pagto_pre)
+
+                cols_need = ["cod_pedido","valor_liq","forma_pagamento","data","total_pedido"]
+                for c in cols_need:
+                    if c not in dfx.columns:
+                        dfx[c] = np.nan
+                df = pd.concat([df, dfx[cols_need]], ignore_index=True)
 
         def normaliza_pagto(x):
             s = str(x).strip().upper()
