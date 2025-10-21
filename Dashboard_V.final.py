@@ -146,12 +146,15 @@ def listar_ciclos_mensais(series_dt):
     nomes_pt = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     ciclos = []
     for m in range(1, 12 + 1):
-        offset = 0 if m == 4 else CYCLE_START_OFFSET
+        offset = 0 if m == 4 else CYCLE_START_OFFSET   # Abril sem offset
         ini, fim = ciclo_12_12_bounds(ano, m, anchor_day=ANCHOR_DAY, start_offset=offset)
-        if not (fim < dt_min or ini > dt_max):
+
+        # Exige interseção com duração > 0 dia:
+        if (fim > dt_min) and (ini <= dt_max):
             nome_mes = nomes_pt[m-1]
             ciclos.append((nome_mes, ini, fim))
     return ciclos
+
 
 def set_locale_ptbr():
     for loc in ("pt_BR.UTF-8", "pt_BR.utf8", "pt_BR", "Portuguese_Brazil.1252"):
