@@ -347,35 +347,25 @@ with tab1:
         df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce")
         df_pre = carregar_primeira_aba_xlsx(None, arq_pre)
         if carregou(df_pre):
-                    dfx = df_pre.copy()
-        dfx.columns = dfx.columns.str.strip()
-
-        cname = dfx.columns
-
-        c_data = "data" if "data" in cname else ("Data" if "Data" in cname else None)
-        c_total = "TOTAL" if "TOTAL" in cname else ("TOTAL_RECALCULADO" if "TOTAL_RECALCULADO" in cname else None)
-
-        if c_data and c_total:
-            dfx = dfx.rename(columns={c_data: "data", c_total: "valor_liq"})
+            dfx = df_pre.copy()
+            dfx.columns = dfx.columns.str.strip()
+            dfx = dfx.rename(columns={"Data": "data"})
             dfx["data"] = pd.to_datetime(dfx["data"], errors="coerce")
-            dfx["valor_liq"] = pd.to_numeric(dfx["valor_liq"], errors="coerce")
-            dfx = dfx.dropna(subset=["data","valor_liq"]).copy()
 
-            if "cod_pedido" not in dfx.columns:
-                dfx = dfx.reset_index(drop=True)
-                dfx["cod_pedido"] = (
-                    "PRE-" + dfx.index.astype(str).str.zfill(4) + "-" +
-                    dfx["data"].dt.strftime("%Y%m%d")
-                )
+            cols_pagto = [c for c in dfx.columns if c not in {"data", "TOTAL", "TOTAL_RECALCULADO"}]
 
-            dfx["forma_pagamento"] = "OUTROS"
+            dfx_long = dfx.melt(id_vars=["data"], value_vars=cols_pagto,
+                                var_name="forma_pagamento", value_name="valor_liq")
+            dfx_long["valor_liq"] = pd.to_numeric(dfx_long["valor_liq"], errors="coerce").fillna(0)
+            dfx_long = dfx_long[dfx_long["valor_liq"] > 0].copy()
 
-            cols_need = ["cod_pedido","valor_liq","forma_pagamento","data","total_pedido"]
-            for c in cols_need:
-                if c not in dfx.columns:
-                    dfx[c] = np.nan
+            dfx_long["cod_pedido"] = (
+                "PRE-" + dfx_long.index.astype(str).str.zfill(4) + "-" +
+                dfx_long["data"].dt.strftime("%Y%m%d")
+            )
+            dfx_long["total_pedido"] = np.nan
 
-            df = pd.concat([df, dfx[cols_need]], ignore_index=True)
+            df = pd.concat([df, dfx_long[["cod_pedido", "valor_liq", "forma_pagamento", "data", "total_pedido"]]], ignore_index=True)
 
         def normaliza_pagto(x):
             s = str(x).strip().upper()
