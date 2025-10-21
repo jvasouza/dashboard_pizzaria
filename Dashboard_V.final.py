@@ -116,6 +116,7 @@ arq_pedidos = DATA / "Todos os pedidos.xlsx"
 arq_contas = DATA / "Lista-contas-receber.xlsx"
 arq_custo_bebidas = DATA / "custo bebidas.xlsx"
 arq_custo_pizzas = DATA / "custo_pizzas.xlsx"
+arq_custos_fixos = DATA / "custos fixos.xlsx"
 
 
 
@@ -569,6 +570,94 @@ with tab3:
 
         cmv_total = float(iv["cmv_item"].sum(skipna=True))
         st.metric("CMV Total (R$)", br_money(cmv_total))
+
+        def alocar_custos_no_periodo(df_custos, data_ini, data_fim, prorratear):
+            dfc = df_custos.copy()
+            dfc.columns = dfc.columns.str.strip()
+            dfc = dfc.rename(columns={"DATA":"data","DESCRIÇÃO":"descricao","VALOR":"valor"})
+            dfc["data"] = pd.to_datetime(dfc["data"], errors="coerce")
+            dfc = dfc.dropna(subset=["data","valor"])
+            dfc["ano"] = dfc["data"].dt.year
+            dfc["mes"] = dfc["data"].dt.month
+            dfc["inicio_mes"] = pd.to_datetime(dfc[["ano","mes"]].assign(dia=1))
+            dfc["fim_mes"] = (dfc["inicio_mes"] + pd.offsets.MonthEnd(1)).dt.normalize()
+            if not prorratear:
+                mask = ~((dfc["fim_mes"] < pd.to_datetime(data_ini)) | (dfc["inicio_mes"] > pd.to_datetime(data_fim)))
+                aloc = dfc.loc[mask].copy()
+                aloc["valor_no_periodo"] = aloc["valor"]
+                aloc["dias_considerados"] = None
+                aloc["dias_no_mes"] = None
+            else:
+                ini = pd.to_datetime(data_ini)
+                fim = pd.to_datetime(data_fim)
+                a = dfc["inicio_mes"].where(dfc["inicio_mes"] > ini, ini)
+                b = dfc["fim_mes"].where(dfc["fim_mes"] < fim, fim)
+                dias = (b - a).dt.days + 1
+                dias = dias.where(dias > 0, 0)
+                aloc = dfc.copy()
+                aloc["dias_considerados"] = dias
+                aloc["dias_no_mes"] = (aloc["fim_mes"] - aloc["inicio_mes"]).dt.days + 1
+                frac = (aloc["dias_considerados"] / aloc["dias_no_mes"]).fillna(0)
+                aloc["valor_no_periodo"] = (aloc["valor"] * frac).where(aloc["dias_considerados"] > 0, 0)
+                aloc = aloc[aloc["valor_no_periodo"] > 0].copy()
+            aloc["mes_ref"] = aloc["inicio_mes"].dt.to_period("M").astype(str)
+            aloc = aloc[["mes_ref","descricao","valor","dias_considerados","dias_no_mes","valor_no_periodo"]].rename(columns={
+                "mes_ref":"Mês",
+                "descricao":"Descrição",
+                "valor":"Valor Mensal (R$)",
+                "dias_considerados":"Dias Considerados",
+                "dias_no_mes":"Dias no Mês",
+                "valor_no_periodo":"Valor no Período (R$)"
+            })
+            total = float(aloc["Valor no Período (R$)"].sum()) if not aloc.empty else 0.0
+            return total, aloc
+
+        df_contas_custos = carregar_primeira_aba_xlsx(arq_contas, None)
+        if carregou(df_contas_custos):
+            dfc2 = df_contas_custos.copy()
+            dfc2.columns = dfc2.columns.str.strip()
+            dfc2 = dfc2.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data"})
+            dfc2["data"] = pd.to_datetime(dfc2["data"], errors="coerce")
+            dfc2 = dfc2.dropna(subset=["data","valor_liq","cod_pedido"]).copy()
+            def normaliza_pagto2(x):
+                s = str(x).strip().upper()
+                if s in {"PIX", "PIX MANUAL", "A CONFIRMAR", "VALE REFEICAO", "VALE REFEIÇÃO"}:
+                    return "PIX"
+                return s
+            dfc2["forma_pagamento"] = dfc2["forma_pagamento"].apply(normaliza_pagto2)
+            mask_receita = (dfc2["data"] >= pd.to_datetime(data_ini)) & (dfc2["data"] <= pd.to_datetime(data_fim))
+            dfr = dfc2.loc[mask_receita].copy()
+            dfr = dfr[~dfr["data"].dt.weekday.isin([0, 1])]
+            receita_total = float(dfr["valor_liq"].sum())
+        else:
+            receita_total = 0.0
+
+        df_cfix = carregar_primeira_aba_xlsx(None, arq_custos_fixos)
+        prorratear = st.toggle("Ratear custos em períodos parciais", value=False, key="ratear_custos_fixos")
+        total_cfix, tabela_cfix = (0.0, pd.DataFrame())
+        if carregou(df_cfix) and data_ini is not None and data_fim is not None:
+            total_cfix, tabela_cfix = alocar_custos_no_periodo(df_cfix, data_ini, data_fim, prorratear)
+
+        margem_bruta = receita_total - cmv_total
+        margem_bruta_pct = (margem_bruta / receita_total * 100) if receita_total else 0.0
+        margem_liquida = receita_total - cmv_total - total_cfix
+        margem_liquida_pct = (margem_liquida / receita_total * 100) if receita_total else 0.0
+
+        kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
+        kpi1.metric("Receita (R$)", br_money(receita_total))
+        kpi2.metric("CMV (R$)", br_money(cmv_total))
+        kpi3.metric("Margem Bruta (R$)", br_money(margem_bruta))
+        kpi4.metric("Margem Bruta (%)", f"{margem_bruta_pct:.1f}%")
+        kpi5.metric("Custos Fixos (R$)", br_money(total_cfix))
+        kpi6.metric("Margem Líquida (R$)", br_money(margem_liquida))
+
+        st.subheader("Custos Fixos no Período")
+        if not tabela_cfix.empty:
+            st.dataframe(nomes_legiveis(tabela_cfix.reset_index(drop=True)), use_container_width=True, hide_index=True)
+        else:
+            st.info("Carregue o arquivo 'custos fixos.xlsx' em data/ para ver os custos fixos no período.")
+
+
 
         tabela = iv.groupby(["nome_limpo"],as_index=False).agg(
             categoria=("cat_norm","first"),
