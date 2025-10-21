@@ -12,7 +12,7 @@ from PIL import Image
 import numpy as np
 import os
 
-
+pd.ExcelFile(r"C:\Users\jvand\Desktop\Dashboard\data\Historico_Itens_Vendidos.xlsx", engine="openpyxl")
 def estilizar_fig(fig):
     fig.update_layout(
         paper_bgcolor="#fefaf2",
