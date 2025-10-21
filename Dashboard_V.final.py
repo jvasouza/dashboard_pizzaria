@@ -691,6 +691,7 @@ with tab3:
             dfr = dfc2.loc[mask_receita].copy()
             dfr = dfr[~dfr["data"].dt.weekday.isin([0, 1])]
             receita_total = float(dfr["valor_liq"].sum())
+            receita_total = receita_total + pre_receita_total
 
         df_cfix = carregar_primeira_aba_xlsx(None, arq_custos_fixos)
 
