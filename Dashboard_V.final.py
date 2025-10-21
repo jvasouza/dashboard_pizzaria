@@ -229,10 +229,16 @@ def filtro_periodo_global(series_dt):
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
     return dini, dfim
 
-def carregar_primeira_aba_xlsx(arquivo: Path | None, caminho: Path | None):
-    import pandas as pd, os
+def carregar_primeira_aba_xlsx(arquivo, caminho):
+    """
+    Lê explicitamente a 1ª aba de um .xlsx com engine=openpyxl e
+    mostra diagnósticos claros no Streamlit em caso de erro.
+    """
+    import pandas as pd, zipfile, os, io
     import streamlit as st
+    from pathlib import Path
 
+    # Resolve o Path final
     p = None
     if arquivo is not None:
         p = Path(arquivo)
@@ -243,26 +249,67 @@ def carregar_primeira_aba_xlsx(arquivo: Path | None, caminho: Path | None):
         st.error("Nenhum caminho de arquivo XLSX foi fornecido.")
         st.stop()
 
+    # 1) Existe?
     if not p.exists():
         st.error(f"Arquivo não encontrado: {p}")
         st.stop()
 
+    # 2) Extensão é .xlsx?
     if p.suffix.lower() != ".xlsx":
-        st.error(f"Extensão inválida para Excel: {p.name}")
+        st.error(f"Extensão inválida: '{p.name}'. Esperado: .xlsx")
         st.stop()
 
+    # 3) Tamanho e mtime (só pra debug)
     try:
-        # Abre o arquivo e tenta a 1ª aba explicitamente
-        xls = pd.ExcelFile(p, engine="openpyxl")
-        if not xls.sheet_names:
-            st.error(f"O arquivo '{p.name}' não possui abas.")
+        size = p.stat().st_size
+        mtime = p.stat().st_mtime
+    except Exception:
+        size, mtime = None, None
+    st.caption(f"DEBUG: Lendo '{p.name}' | size={size} bytes | mtime={mtime}")
+
+    # 4) XLSX é um ZIP válido?
+    try:
+        with open(p, "rb") as fh:
+            is_zip = zipfile.is_zipfile(fh)
+        if not is_zip:
+            st.error(
+                "O arquivo não é um ZIP válido (XLSX). "
+                "Verifique se ele não está corrompido ou se é outro formato renomeado como .xlsx."
+            )
             st.stop()
-        primeira_aba = xls.sheet_names[0]
-        df = pd.read_excel(xls, sheet_name=primeira_aba, engine="openpyxl")
+    except Exception as e:
+        st.error(f"Falha verificando ZIP interno de '{p.name}': {type(e).__name__}: {e}")
+        st.stop()
+
+    # 5) Tenta abrir com openpyxl explicitamente e reporta sheet_names
+    try:
+        xls = pd.ExcelFile(p, engine="openpyxl")
+    except zipfile.BadZipFile as e:
+        st.error(f"BadZipFile ao abrir '{p.name}': {e}")
+        st.stop()
+    except ValueError as e:
+        # Mensagem clássica: "Excel file format cannot be determined, you must specify an engine manually."
+        st.error(f"ValueError ao abrir '{p.name}': {e}")
+        st.stop()
+    except Exception as e:
+        st.error(f"Erro ao abrir '{p.name}': {type(e).__name__}: {e}")
+        st.stop()
+
+    if not xls.sheet_names:
+        st.error(f"O arquivo '{p.name}' não possui abas.")
+        st.stop()
+
+    primeira = xls.sheet_names[0]
+    st.caption(f"DEBUG: Abas encontradas: {xls.sheet_names} | usando '{primeira}'")
+
+    # 6) Leitura da aba
+    try:
+        df = pd.read_excel(xls, sheet_name=primeira, engine="openpyxl")
         return df
     except Exception as e:
-        st.error(f"Falha ao ler '{p.name}'. Detalhes: {type(e).__name__}: {e}")
+        st.error(f"Falha ao ler a aba '{primeira}' de '{p.name}': {type(e).__name__}: {e}")
         st.stop()
+
 
 
 
