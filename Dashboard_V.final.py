@@ -319,7 +319,8 @@ with tab1:
         df.columns = df.columns.str.strip()
         arq_pre = DATA / "recebimentos_ate_25.04.xlsx"
         df = df.rename(columns={"Cód. Pedido":"cod_pedido","Valor Líq.":"valor_liq","Forma Pagamento":"forma_pagamento","Crédito":"data","Total Pedido":"total_pedido"})
-
+        df["data"] = pd.to_datetime(df["data"], errors="coerce")
+        df["valor_liq"] = pd.to_numeric(df["valor_liq"], errors="coerce")
         df_pre = carregar_primeira_aba_xlsx(None, arq_pre)
         if carregou(df_pre):
             dfx = df_pre.copy()
