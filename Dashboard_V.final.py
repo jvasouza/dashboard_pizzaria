@@ -229,26 +229,41 @@ def filtro_periodo_global(series_dt):
     st.sidebar.caption(f"Filtrando: {dini.strftime('%d/%m/%Y')} → {dfim.strftime('%d/%m/%Y')}")
     return dini, dfim
 
-def carregar_primeira_aba_xlsx(arquivo, caminho):
-    def _read(p):
-        # força engine e primeira aba
-        return pd.read_excel(p, sheet_name=0, engine="openpyxl")
+def carregar_primeira_aba_xlsx(arquivo: Path | None, caminho: Path | None):
+    import pandas as pd, os
+    import streamlit as st
+
+    p = None
+    if arquivo is not None:
+        p = Path(arquivo)
+    elif caminho is not None:
+        p = Path(caminho)
+
+    if p is None:
+        st.error("Nenhum caminho de arquivo XLSX foi fornecido.")
+        st.stop()
+
+    if not p.exists():
+        st.error(f"Arquivo não encontrado: {p}")
+        st.stop()
+
+    if p.suffix.lower() != ".xlsx":
+        st.error(f"Extensão inválida para Excel: {p.name}")
+        st.stop()
 
     try:
-        if arquivo:
-            return _read(arquivo)
-        if caminho:
-            return _read(caminho)
-        return None
+        # Abre o arquivo e tenta a 1ª aba explicitamente
+        xls = pd.ExcelFile(p, engine="openpyxl")
+        if not xls.sheet_names:
+            st.error(f"O arquivo '{p.name}' não possui abas.")
+            st.stop()
+        primeira_aba = xls.sheet_names[0]
+        df = pd.read_excel(xls, sheet_name=primeira_aba, engine="openpyxl")
+        return df
     except Exception as e:
-        # ajuda no diagnóstico dentro do app
-        try:
-            p = arquivo or caminho
-            size = os.path.getsize(p) if p else 0
-        except Exception:
-            size = "?"
-        st.error(f"Falha ao abrir Excel: {arquivo or caminho} (tamanho={size} bytes)\n\n{e}")
-        raise
+        st.error(f"Falha ao ler '{p.name}'. Detalhes: {type(e).__name__}: {e}")
+        st.stop()
+
 
 
 def carregou(df):
