@@ -576,10 +576,12 @@ with tab3:
             dfc.columns = dfc.columns.str.strip()
             dfc = dfc.rename(columns={"DATA":"data","DESCRIÇÃO":"descricao","VALOR":"valor"})
             dfc["data"] = pd.to_datetime(dfc["data"], errors="coerce")
+            dfc["valor"] = pd.to_numeric(dfc["valor"], errors="coerce")
             dfc = dfc.dropna(subset=["data","valor"])
+
             dfc["ano"] = dfc["data"].dt.year
             dfc["mes"] = dfc["data"].dt.month
-            dfc["inicio_mes"] = pd.to_datetime(dfc[["ano","mes"]].assign(dia=1))
+            dfc["inicio_mes"] = pd.to_datetime({"year": dfc["ano"], "month": dfc["mes"], "day": 1})
             dfc["fim_mes"] = (dfc["inicio_mes"] + pd.offsets.MonthEnd(1)).dt.normalize()
             if not prorratear:
                 mask = ~((dfc["fim_mes"] < pd.to_datetime(data_ini)) | (dfc["inicio_mes"] > pd.to_datetime(data_fim)))
