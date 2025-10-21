@@ -63,12 +63,40 @@ def copiar(src, dst, label):
     return True
 
 def git_commit_push(repo_dir, msg):
-    subprocess.run(["git", "-C", str(repo_dir), "add", "."], check=True)
-    res = subprocess.run(["git", "-C", str(repo_dir), "commit", "-m", msg], capture_output=True, text=True)
-    if "nothing to commit" in res.stdout.lower(): print("[INFO] Nenhuma alteração nova.")
-    else: print(res.stdout.strip())
-    subprocess.run(["git", "-C", str(repo_dir), "push", "-u", "origin", "main"], check=True)
-    print("[OK] Push concluído.")
+    def run(*args, check=True, capture=False):
+        return subprocess.run(
+            ["git", "-C", str(repo_dir), *args],
+            check=check,
+            text=True,
+            capture_output=capture
+        )
+
+    # puxa do remoto antes de tudo
+    run("fetch", "origin")
+    try:
+        run("pull", "--rebase", "origin", "main")
+        print("[OK] Pull --rebase concluído.")
+    except subprocess.CalledProcessError as e:
+        print("[ERRO] Falha no pull --rebase. Saída:")
+        print(e.stderr or e.stdout)
+        raise
+
+    # adiciona e commita
+    run("add", ".")
+    res = run("commit", "-m", msg, capture=True, check=False)
+    if "nothing to commit" in (res.stdout or "").lower():
+        print("[INFO] Nenhuma alteração nova.")
+
+    # tenta o push
+    try:
+        run("push", "-u", "origin", "main")
+        print("[OK] Push concluído.")
+    except subprocess.CalledProcessError as e:
+        print("[ERRO] Push falhou. Mensagem do Git:")
+        print(e.stderr or e.stdout)
+        print("Dica: verifique se há commits remotos novos ou tente 'git push --force' (com cautela).")
+        raise
+
 
 def main():
     print("== Atualizando arquivos e publicando ==")
